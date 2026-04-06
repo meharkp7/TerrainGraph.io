@@ -37,10 +37,6 @@ MODEL_MIOU = 0.6676
 
 print("Loading model...")
 model, device, cfg = load_model(CHECKPOINT)
-print(f"Connecting to TigerGraph...")
-conn = get_connection()
-print("✅ Pipeline ready\n")
-
 
 # ─────────────────────────────────────────────
 # MAIN PIPELINE FUNCTION
@@ -55,6 +51,9 @@ def run_pipeline(image_path: str,
     Returns:
         result dict with all outputs for UI display
     """
+    print(f"Connecting to TigerGraph...")
+    conn = get_connection()
+    print("✅ Pipeline ready\n")
     t_start   = time.time()
     image_id  = f"img_{uuid.uuid4().hex[:8]}"
     out_dir   = Path("./pipeline_outputs") / image_id
