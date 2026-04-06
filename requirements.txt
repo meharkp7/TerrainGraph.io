@@ -7,7 +7,7 @@ pillow==12.1.1
 numpy==2.4.3
 opencv-python==4.10.0.84
 
-torch==2.2.0+cpu
+torch==2.2.0
 --extra-index-url https://download.pytorch.org/whl/cpu
 
 segmentation-models-pytorch==0.3.3
