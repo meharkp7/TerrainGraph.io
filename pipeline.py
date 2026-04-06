@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from segmentor    import predict, CLASS_NAMES, NUM_CLASSES
+from segmentor    import load_model, predict, CLASS_NAMES, NUM_CLASSES
 from terrain_graph import (
     get_connection, upload_terrain,
     find_safe_path, get_risk_zones,
@@ -36,15 +36,8 @@ CHECKPOINT = os.getenv(
 MODEL_MIOU = 0.6676
 
 print("Loading model...")
-model = None
-device = None
+model, device, cfg = load_model(CHECKPOINT)
 
-def get_model():
-    global model, device
-    if model is None:
-        print("🔥 Loading model...")
-        device, model = load_model(CHECKPOINT)
-    return device, model
 # ─────────────────────────────────────────────
 # MAIN PIPELINE FUNCTION
 # ─────────────────────────────────────────────
@@ -58,9 +51,8 @@ def run_pipeline(image_path: str,
     Returns:
         result dict with all outputs for UI display
     """
-    device, model = get_model()
     print(f"Connecting to TigerGraph...")
-    conn = get_connection()
+    conn = None
     print("✅ Pipeline ready\n")
     t_start   = time.time()
     image_id  = f"img_{uuid.uuid4().hex[:8]}"

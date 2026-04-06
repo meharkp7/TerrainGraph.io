@@ -10,7 +10,7 @@ from pathlib import Path
 from huggingface_hub import hf_hub_download
 
 HF_REPO  = os.getenv("HF_MODEL_REPO",
-                      "YOUR_HF_USERNAME/terrain-intelligence")
+                      "mk1647/terrain-intelligence")
 HF_TOKEN = os.getenv("HF_TOKEN", "")
 
 DEST_DIR  = Path("./runs/deployed")
