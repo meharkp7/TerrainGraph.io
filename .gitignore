@@ -1,0 +1,15 @@
+.env
+*.pt
+*.pth
+*.h5
+*.ckpt
+data/
+dataset/
+node_modules/
+__pycache__/
+*.csv
+*.log
+.DS_Store
+runs/
+*.png
+*.json
