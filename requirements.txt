@@ -1,4 +1,27 @@
-# --- Core Backend ---
+# # --- Core Backend ---
+# fastapi==0.129.0
+# uvicorn==0.40.0
+# python-dotenv==1.2.2
+# requests==2.33.0
+
+# # --- Image Processing ---
+# pillow==12.1.1
+# numpy==1.26.4
+# opencv-python==4.10.0.84
+
+# # --- ML (CPU ONLY - Railway safe) ---
+# torch==2.2.0
+# torchvision==0.17.0
+# --extra-index-url https://download.pytorch.org/whl/cpu
+
+# segmentation-models-pytorch==0.3.3
+
+# # --- Optional (only if you REALLY use it) ---
+# pyTigerGraph==1.8.0
+
+#HF DEMO VERSION->
+
+# --- Core ---
 fastapi==0.129.0
 uvicorn==0.40.0
 python-dotenv==1.2.2
@@ -9,12 +32,17 @@ pillow==12.1.1
 numpy==1.26.4
 opencv-python==4.10.0.84
 
-# --- ML (CPU ONLY - Railway safe) ---
+# --- ML (CPU ONLY) ---
 torch==2.2.0
 torchvision==0.17.0
 --extra-index-url https://download.pytorch.org/whl/cpu
 
 segmentation-models-pytorch==0.3.3
 
-# --- Optional (only if you REALLY use it) ---
+# --- HF + UI ---
+gradio==4.44.0
+huggingface_hub==0.23.5
+matplotlib==3.8.4
+
+# --- Optional (keep if needed later) ---
 pyTigerGraph==1.8.0
