@@ -6,7 +6,7 @@ requests==2.33.0
 
 # --- Image Processing ---
 pillow==12.1.1
-numpy==2.4.3
+numpy==1.26.4
 opencv-python==4.10.0.84
 
 # --- ML (CPU ONLY - Railway safe) ---
@@ -17,4 +17,4 @@ torchvision==0.17.0
 segmentation-models-pytorch==0.3.3
 
 # --- Optional (only if you REALLY use it) ---
-# pyTigerGraph==1.8.0
+pyTigerGraph==1.8.0
