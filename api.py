@@ -71,20 +71,6 @@ def _log_memory(label: str):
     except Exception:
         pass
 
-
-# ── Startup: bind the port first, THEN load the model ─────────────────────────
-@app.on_event("startup")
-async def startup_event():
-    """
-    uvicorn calls this after the socket is bound.
-    Railway healthcheck can now reach /health immediately.
-    We kick off model loading in a background thread.
-    """
-    print("🚀 uvicorn bound — starting background model load...")
-    t = threading.Thread(target=_load_pipeline_background, daemon=True)
-    t.start()
-
-
 # ── Health — always instant ────────────────────────────────────────────────────
 @app.get("/health")
 def health():
@@ -119,19 +105,22 @@ def ready():
 # ── Analyze ────────────────────────────────────────────────────────────────────
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...)):
-    if _model_loading and not _model_ready:
-        # Model is still loading — tell client to retry
-        raise HTTPException(
-            status_code=503,
-            detail="Model is still loading. Poll /ready and retry in ~30s."
-        )
+    global _model_ready, _model_loading
+
+    # 🔥 load ONLY when needed
+    if not _model_ready and not _model_loading:
+        print("⚡ Loading model ON DEMAND...")
+        _load_pipeline_background()
+
+    if _model_loading:
+        raise HTTPException(503, "Model loading, retry in ~20s")
+
     if not _model_ready:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Model not loaded: {_model_error or 'unknown error'}"
-        )
+        raise HTTPException(503, f"Model failed: {_model_error}")
+
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(400, "File must be an image")
+
 
     suffix = Path(file.filename or "upload.png").suffix or ".png"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
