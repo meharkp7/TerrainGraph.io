@@ -1,0 +1,107 @@
+{
+  "image_id": "img_ef600b36",
+  "class_dist": {
+    "Dense_Vegetation": 0.00077056884765625,
+    "Dry_Vegetation": 0.5228843688964844,
+    "Ground_Objects": 0.011932373046875,
+    "Rocks": 0.028690338134765625,
+    "Landscape": 0.3292579650878906,
+    "Sky": 0.10646438598632812
+  },
+  "path": {
+    "hop_count": 15,
+    "total_cost": 0.0,
+    "waypoints": [
+      [
+        8,
+        15
+      ],
+      [
+        8,
+        14
+      ],
+      [
+        8,
+        13
+      ],
+      [
+        8,
+        12
+      ],
+      [
+        8,
+        11
+      ],
+      [
+        8,
+        10
+      ],
+      [
+        8,
+        9
+      ],
+      [
+        8,
+        8
+      ],
+      [
+        8,
+        7
+      ],
+      [
+        8,
+        6
+      ],
+      [
+        8,
+        5
+      ],
+      [
+        8,
+        4
+      ],
+      [
+        8,
+        3
+      ],
+      [
+        8,
+        2
+      ],
+      [
+        8,
+        1
+      ],
+      [
+        8,
+        0
+      ]
+    ]
+  },
+  "risk_zones": [
+    {
+      "attributes": {
+        "class_name": "Rocks",
+        "severity": "HIGH",
+        "patch_count": 4,
+        "center_row": 8,
+        "center_col": 12
+      }
+    }
+  ],
+  "similar": [],
+  "avg_trav": 0.7132,
+  "briefing": "The terrain ahead is composed of dry vegetation, ground objects, rocks, and landscape features. The safest path, calculated using Dijkstra's method, involves 15 hops with zero cost. However, there are HIGH risk zones due to rocks. Given the average traversability score of 0.713, I recommend following the calculated safest path to minimize risk. No historical data is available for reference. Proceed with caution along the designated safest path.",
+  "explanation": "Our AI terrain intelligence system analyzed the environment, identifying 52.3% as dry vegetation and detecting one risk zone. It then computed a safe path using TigerGraph Dijkstra, leveraging DeepLabV3+ and LLM reasoning, achieving a model mIoU of 0.6676. This enables autonomous vehicles to navigate complex terrain, enhancing safety and efficiency, with our unique graph-based approach setting us apart.",
+  "total_time": 2.05,
+  "model_miou": 0.6676070523295796,
+  "graph_patches": 0,
+  "graph_edges": 0,
+  "timing": {
+    "segmentation": 0.54,
+    "terrain_graph": 0.0,
+    "dijkstra": 0.0,
+    "knowledge": 0.0,
+    "llm": 1.31
+  }
+}

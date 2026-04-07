@@ -1,219 +1,237 @@
 """
-pipeline.py — Railway-safe: nothing runs at import time
+pipeline.py  —  FIXED VERSION
+──────────────────────────────
+Key fix: upload_terrain() now returns path in its result dict.
+No separate find_safe_path() call needed.
 """
 
-import os, sys, time, json, hashlib, gc, textwrap
+import os
+import time
+import json
+import uuid
 import numpy as np
 from pathlib import Path
-from PIL import Image
-import cv2
 from dotenv import load_dotenv
+
 load_dotenv()
 
-MODEL_MIOU          = 0.0
-_segmentor_instance = None
-_graph_instance     = None
+from segmentor     import load_model, predict, CLASS_NAMES, NUM_CLASSES
+from terrain_graph import (
+    get_connection,
+    upload_terrain,
+    get_risk_zones,
+    find_similar_terrains,
+    draw_path_on_mask,
+)
+from explainer import (
+    generate_navigation_briefing,
+    generate_system_explanation,
+)
+
+# ─────────────────────────────────────────────
+# LOAD MODEL + CONNECT ONCE AT STARTUP
+# ─────────────────────────────────────────────
+
+CHECKPOINT = os.getenv(
+    "MODEL_CHECKPOINT",
+    "./runs/deeplabv3+_20260403_211706/best.pth"
+)
+MODEL_MIOU = 0.6676
+
+print("Loading model...")
+model, device, cfg = load_model(CHECKPOINT)
+
+print("Connecting to TigerGraph...")
+conn = get_connection()
+print("✅ Pipeline ready\n")
 
 
-def _get_segmentor():
-    global _segmentor_instance, MODEL_MIOU
-    if _segmentor_instance is None:
-        from segmentor import Segmentor
-        _segmentor_instance = Segmentor()
-        MODEL_MIOU = _segmentor_instance.miou
-    return _segmentor_instance
+# ─────────────────────────────────────────────
+# MAIN PIPELINE
+# ─────────────────────────────────────────────
 
-
-def _get_graph():
-    global _graph_instance
-    if _graph_instance is None:
-        try:
-            from terrain_graph import TerrainGraph
-            _graph_instance = TerrainGraph()
-            print("✅ TigerGraph connected")
-        except Exception as e:
-            print(f"⚠️  TigerGraph unavailable: {e}")
-            _graph_instance = _FallbackGraph()
-    return _graph_instance
-
-
-class _FallbackGraph:
-    def upload(self, image_id, mask):
-        return {"patches":0,"edges":0,"risks":0}
-    def find_path(self, image_id):
-        return {"hops":15,"cost":0.0,
-                "waypoints":[[8,15-i] for i in range(16)]}
-    def query_knowledge(self, image_id):
-        return {"similar_terrains":[]}
-
-
-CLASS_NAMES = ["Dense_Vegetation","Dry_Vegetation","Ground_Objects",
-               "Rocks","Landscape","Sky"]
-TRAV = {"Dense_Vegetation":0.45,"Dry_Vegetation":0.75,"Ground_Objects":0.30,
-        "Rocks":0.15,"Landscape":0.95,"Sky":0.00}
-RISK = {"Dense_Vegetation":"MED","Dry_Vegetation":"LOW",
-        "Ground_Objects":"MED_HIGH","Rocks":"HIGH","Landscape":"LOW","Sky":"N/A"}
-PALETTE = np.array([[34,139,34],[210,180,140],[139,90,43],
-                    [128,128,128],[205,133,63],[135,206,235]],dtype=np.uint8)
-OUTPUT_ROOT = Path("pipeline_outputs")
-OUTPUT_ROOT.mkdir(exist_ok=True)
-
-
-def _colorize(mask):
-    out = np.zeros((*mask.shape,3),dtype=np.uint8)
-    for i,rgb in enumerate(PALETTE): out[mask==i]=rgb
-    return out
-
-def _overlay(img,mask,alpha=0.45):
-    color = _colorize(mask); h,w = mask.shape
-    orig  = cv2.resize(img,(w,h)) if img.shape[:2]!=(h,w) else img.copy()
-    return cv2.addWeighted(orig.astype(np.uint8),1-alpha,
-                           color.astype(np.uint8),alpha,0)
-
-def _save(arr,path): Image.fromarray(arr.astype(np.uint8)).save(path)
-
-def _class_dist(mask):
-    total = mask.size
-    return {n:float(np.sum(mask==i))/total
-            for i,n in enumerate(CLASS_NAMES) if np.sum(mask==i)>0}
-
-def _scene_trav(dist):
-    s = sum(TRAV.get(k,.5)*v for k,v in dist.items())
-    d = sum(dist.values())
-    return round(s/d,4) if d>0 else 0.5
-
-def _build_risk_zones(mask):
-    h,w=mask.shape; G=16; ph,pw=h//G,w//G; zones=[]
-    for ci,name in enumerate(CLASS_NAMES):
-        sev=RISK.get(name,"LOW")
-        if sev in ("LOW","N/A"): continue
-        count=rows=cols=0
-        for gr in range(G):
-            for gc_ in range(G):
-                patch=mask[gr*ph:(gr+1)*ph,gc_*pw:(gc_+1)*pw]
-                dom=int(np.bincount(patch.flatten(),minlength=NUM_CLASSES).argmax())
-                if dom==ci: count+=1;rows+=gr;cols+=gc_
-        if count>0:
-            zones.append({"attributes":{
-                "class_name":name,"severity":sev,
-                "patch_count":count,
-                "center_row":round(rows/count),
-                "center_col":round(cols/count)}})
-    order={"HIGH":0,"MED_HIGH":1,"MED":2}
-    return sorted(zones,key=lambda z:order.get(z["attributes"]["severity"],9))
-
-NUM_CLASSES = len(CLASS_NAMES)
-
-def _save_path_viz(img,mask,path_info,save_path):
-    blend=_overlay(img,mask); h,w=blend.shape[:2]; G=16
-    pw_g,ph_g=w//G,h//G; wps=path_info.get("waypoints",[])
-    if len(wps)>=2:
-        pts=np.array(wps,dtype=np.int32)
-        for i in range(len(pts)-1):
-            p1=(int(pts[i][0]*pw_g+pw_g//2),int(pts[i][1]*ph_g+ph_g//2))
-            p2=(int(pts[i+1][0]*pw_g+pw_g//2),int(pts[i+1][1]*ph_g+ph_g//2))
-            cv2.line(blend,p1,p2,(0,255,120),3,cv2.LINE_AA)
-        cv2.circle(blend,(int(pts[0][0]*pw_g+pw_g//2),
-                          int(pts[0][1]*ph_g+ph_g//2)),8,(0,255,120),-1)
-        cv2.circle(blend,(int(pts[-1][0]*pw_g+pw_g//2),
-                          int(pts[-1][1]*ph_g+ph_g//2)),8,(255,80,0),-1)
-    _save(blend,save_path)
-
-
-def run_pipeline(image_path, use_tta=False, save_outputs=True):
-    t0       = time.time()
-    img_path = Path(image_path)
-    image_id = "img_"+hashlib.md5(img_path.read_bytes()).hexdigest()[:8]
-    out_dir  = OUTPUT_ROOT/image_id
-    out_dir.mkdir(parents=True,exist_ok=True)
-
-    print(f"\n{'='*60}\nProcessing: {img_path.name}  →  {image_id}\n{'='*60}")
-    img_rgb = np.array(Image.open(img_path).convert("RGB"))
-
-    # 1 — Segmentation
-    t1=time.time(); print("[1/5] Segmenting...")
-    seg=_get_segmentor(); mask=seg.predict(img_rgb)
-    dist=_class_dist(mask); trav=_scene_trav(dist)
-    t_seg=round(time.time()-t1,2); print(f"      {t_seg}s")
-    for n,f in sorted(dist.items(),key=lambda x:-x[1]):
-        print(f"      {n:<25}: {f*100:5.1f}%")
-
+def run_pipeline(image_path: str,
+                 use_tta: bool = True,
+                 save_outputs: bool = True) -> dict:
+    """
+    Full pipeline:
+      1. Segmentation (DeepLabV3+)
+      2. Terrain graph upload to TigerGraph
+         → Python Dijkstra runs INSIDE upload_terrain
+      3. Risk zone + similar terrain queries
+      4. LLM briefing (Groq / Gemini / Claude)
+    Returns result dict for the API / UI.
+    """
+    t_start  = time.time()
+    image_id = f"img_{uuid.uuid4().hex[:8]}"
+    out_dir  = Path("./pipeline_outputs") / image_id
     if save_outputs:
-        _save(img_rgb,             out_dir/"original.png")
-        _save(_colorize(mask),     out_dir/"segmented.png")
-        _save(_overlay(img_rgb,mask),out_dir/"overlay.png")
-    gc.collect()
+        out_dir.mkdir(parents=True, exist_ok=True)
 
-    # 2 — Graph
-    t1=time.time(); print("[2/5] Building terrain graph...")
-    graph=_get_graph(); ginfo=graph.upload(image_id,mask)
-    t_graph=round(time.time()-t1,2)
-    print(f"      {t_graph}s  patches={ginfo.get('patches',0)}  edges={ginfo.get('edges',0)}")
+    print(f"\n{'='*60}")
+    print(f"Image    : {image_path}")
+    print(f"Image ID : {image_id}")
+    print(f"{'='*60}")
 
-    # 3 — Path
-    t1=time.time(); print("[3/5] Dijkstra path...")
-    pinfo=graph.find_path(image_id)
-    hops=pinfo.get("hops",pinfo.get("hop_count",0))
-    cost=pinfo.get("cost",pinfo.get("total_cost",0.0))
-    path_out={"hop_count":int(hops),"total_cost":round(float(cost),4),
-              "waypoints":pinfo.get("waypoints",[])}
-    t_path=round(time.time()-t1,2); print(f"      {t_path}s  hops={hops}")
-    if save_outputs: _save_path_viz(img_rgb,mask,pinfo,out_dir/"path.png")
+    # ── Step 1: Segmentation ──────────────────────────────────
+    print("\n[1/4] Segmentation...")
+    t0 = time.time()
+    seg = predict(model, device, image_path, use_tta=use_tta)
+    print(f"      Done in {time.time()-t0:.1f}s")
+    print("      Class distribution:")
+    for name, pct in seg["class_dist"].items():
+        if pct > 0.01:
+            bar = '█' * int(pct * 30)
+            print(f"        {name:25s}: {pct:.1%}  {bar}")
 
-    # 4 — Knowledge
-    t1=time.time(); print("[4/5] Knowledge query...")
-    know=graph.query_knowledge(image_id)
-    risk_zones=_build_risk_zones(mask)
-    raw_sim=know.get("similar_terrains",[])
-    similar_out=[{"attributes":{
-        "avg_traversability":t.get("avg_traversability",t.get("traversability",0)),
-        "dominant_class":t.get("dominant_class","?"),
-        "miou_achieved":t.get("miou_achieved",0),
-        "image_id":t.get("image_id","?")}}
-        if isinstance(t,dict) and "attributes" not in t else t
-        for t in raw_sim]
-    t_know=round(time.time()-t1,2)
-    print(f"      {t_know}s  risks={len(risk_zones)}  similar={len(similar_out)}")
+    # ── Step 2: Terrain graph + Dijkstra path ─────────────────
+    print("\n[2/4] Building terrain graph + pathfinding...")
+    t0 = time.time()
+    terrain = upload_terrain(
+        conn=conn,
+        image_id=image_id,
+        image_path=image_path,
+        seg_result=seg,
+        model_miou=MODEL_MIOU,
+    )
+    # Path is already computed inside upload_terrain via Python Dijkstra
+    path_result = terrain["path"]
+    print(f"      Done in {time.time()-t0:.1f}s")
+    print(f"      Patches : {terrain['patches']}")
+    print(f"      Edges   : {terrain['edges']}")
+    print(f"      Path    : {path_result['hop_count']} hops, "
+          f"cost={path_result['total_cost']}")
 
-    # 5 — LLM
-    t1=time.time(); print("[5/5] AI briefing...")
-    try:
-        from explainer import generate_navigation_briefing, generate_system_explanation
-        briefing=generate_navigation_briefing(
-            class_dist=dist, path_result=path_out,
-            risk_zones=risk_zones, similar_terrains=similar_out[:3],
-            avg_traversability=trav)
-        explanation=generate_system_explanation(
-            class_dist=dist, path_result=path_out,
-            risk_zones=risk_zones, model_miou=MODEL_MIOU)
-    except Exception as e:
-        print(f"  ⚠️  LLM: {e}")
-        dom=max(dist,key=dist.get) if dist else "terrain"
-        briefing=(f"Terrain dominated by {dom} ({dist.get(dom,0)*100:.0f}%). "
-                  f"Traversability: {trav*100:.0f}%. "
-                  f"Safest path: {hops} hops. "
-                  f"{len(risk_zones)} risk zone(s) detected.")
-        explanation=briefing
-    t_llm=round(time.time()-t1,2); print(f"      {t_llm}s")
+    # ── Step 3: Risk zones + similar terrains ─────────────────
+    print("\n[3/4] Querying graph...")
+    t0 = time.time()
 
-    total=round(time.time()-t0,2)
-    result={
-        "image_id":image_id,"class_dist":dist,"path":path_out,
-        "risk_zones":risk_zones,"similar":similar_out,
-        "avg_trav":trav,"briefing":briefing,"explanation":explanation,
-        "total_time":total,"model_miou":getattr(seg,"miou",MODEL_MIOU),
-        "graph_patches":ginfo.get("patches",0),
-        "graph_edges":ginfo.get("edges",0),
-        "timing":{"segmentation":t_seg,"terrain_graph":t_graph,
-                  "dijkstra":t_path,"knowledge":t_know,"llm":t_llm},
+    # Risk zones from terrain (already computed locally)
+    risk_zones_local = terrain["risk_zones"]
+
+    # Also try to fetch from TigerGraph (may return richer data)
+    risk_zones_tg = get_risk_zones(conn, image_id)
+    risk_zones    = risk_zones_tg if risk_zones_tg else _format_local_risks(risk_zones_local)
+
+    similar = find_similar_terrains(
+        conn,
+        rock_pct   = seg["class_dist"].get("Rocks", 0),
+        veg_pct    = (seg["class_dist"].get("Dense_Vegetation", 0) +
+                      seg["class_dist"].get("Dry_Vegetation", 0)),
+        brightness = float(seg["orig_np"].mean() / 255),
+        top_k      = 5,
+    )
+    print(f"      Done in {time.time()-t0:.1f}s")
+    print(f"      Risk zones: {len(risk_zones_local)} local, "
+          f"{len(risk_zones_tg)} from TigerGraph")
+    print(f"      Similar terrains: {len(similar)}")
+
+    # ── Step 4: LLM reasoning ─────────────────────────────────
+    print("\n[4/4] LLM briefing...")
+    t0 = time.time()
+    briefing    = generate_navigation_briefing(
+        class_dist         = seg["class_dist"],
+        path_result        = path_result,
+        risk_zones         = risk_zones,
+        similar_terrains   = similar,
+        avg_traversability = float(seg["trav_map"].mean()),
+    )
+    explanation = generate_system_explanation(
+        class_dist  = seg["class_dist"],
+        path_result = path_result,
+        risk_zones  = risk_zones,
+        model_miou  = MODEL_MIOU,
+    )
+    print(f"      Done in {time.time()-t0:.1f}s")
+
+    # ── Draw path ─────────────────────────────────────────────
+    path_visual = draw_path_on_mask(
+        seg["color_mask"],
+        path_result.get("path_ids", []),
+    )
+
+    # ── Save outputs ──────────────────────────────────────────
+    if save_outputs:
+        from PIL import Image as PILImage
+        PILImage.fromarray(seg["orig_np"])\
+                 .save(out_dir / "original.png")
+        PILImage.fromarray(seg["color_mask"])\
+                 .save(out_dir / "segmented.png")
+        PILImage.fromarray(seg["overlay"])\
+                 .save(out_dir / "overlay.png")
+        PILImage.fromarray(path_visual)\
+                 .save(out_dir / "path.png")
+        with open(out_dir / "briefing.txt", "w") as f:
+            f.write(briefing)
+        with open(out_dir / "summary.json", "w") as f:
+            json.dump({
+                "image_id":  image_id,
+                "class_dist":seg["class_dist"],
+                "path":      path_result,
+                "risk_zones":len(risk_zones_local),
+                "similar":   len(similar),
+                "avg_trav":  float(seg["trav_map"].mean()),
+            }, f, indent=2)
+        print(f"\n      Saved → {out_dir}")
+
+    total_time = time.time() - t_start
+
+    result = {
+        # Images
+        "original":    seg["orig_np"],
+        "segmented":   seg["color_mask"],
+        "overlay":     seg["overlay"],
+        "path_visual": path_visual,
+
+        # Data
+        "image_id":    image_id,
+        "class_dist":  seg["class_dist"],
+        "path":        path_result,
+        "risk_zones":  risk_zones,
+        "similar":     similar,
+        "avg_trav":    float(seg["trav_map"].mean()),
+
+        # Text
+        "briefing":    briefing,
+        "explanation": explanation,
+
+        # Stats
+        "total_time":  round(total_time, 2),
+        "model_miou":  MODEL_MIOU,
     }
-    if save_outputs:
-        with open(out_dir/"result.json","w") as f:
-            json.dump(result,f,indent=2,default=str)
-    print(f"\n✅ Done in {total}s\n📋 {textwrap.fill(briefing,68)}\n")
+
+    print(f"\n{'='*60}")
+    print(f"✅ Complete in {total_time:.1f}s")
+    print(f"\n📋 Briefing:\n{briefing}")
+    print(f"{'='*60}")
+
     return result
 
 
-if __name__=="__main__":
-    if len(sys.argv)<2: print("Usage: python pipeline.py <image>"); sys.exit(1)
-    run_pipeline(sys.argv[1])
+# ─────────────────────────────────────────────
+# HELPER
+# ─────────────────────────────────────────────
+
+def _format_local_risks(zones: list) -> list:
+    """Convert local risk zone dicts to TigerGraph-style format."""
+    return [{"attributes": z} for z in zones]
+
+
+# ─────────────────────────────────────────────
+# CLI TEST
+# ─────────────────────────────────────────────
+
+if __name__ == "__main__":
+    import sys
+
+    img = sys.argv[1] if len(sys.argv) > 1 else None
+
+    if img is None:
+        imgs = list(Path("./dataset/val/Color_Images").glob("*.png"))
+        if not imgs:
+            print("No test image. Pass path as argument.")
+            sys.exit(1)
+        img = str(imgs[0])
+
+    print(f"Test image: {img}")
+    result = run_pipeline(img)

@@ -1,0 +1,97 @@
+{
+  "image_id": "img_17e8a7ac",
+  "class_dist": {
+    "Dense_Vegetation": 0.00029754638671875,
+    "Dry_Vegetation": 0.01937103271484375,
+    "Ground_Objects": 0.000240325927734375,
+    "Rocks": 0.0009307861328125,
+    "Landscape": 0.4315071105957031,
+    "Sky": 0.5476531982421875
+  },
+  "path": {
+    "hop_count": 15,
+    "total_cost": 0.0,
+    "waypoints": [
+      [
+        8,
+        15
+      ],
+      [
+        8,
+        14
+      ],
+      [
+        8,
+        13
+      ],
+      [
+        8,
+        12
+      ],
+      [
+        8,
+        11
+      ],
+      [
+        8,
+        10
+      ],
+      [
+        8,
+        9
+      ],
+      [
+        8,
+        8
+      ],
+      [
+        8,
+        7
+      ],
+      [
+        8,
+        6
+      ],
+      [
+        8,
+        5
+      ],
+      [
+        8,
+        4
+      ],
+      [
+        8,
+        3
+      ],
+      [
+        8,
+        2
+      ],
+      [
+        8,
+        1
+      ],
+      [
+        8,
+        0
+      ]
+    ]
+  },
+  "risk_zones": [],
+  "similar": [],
+  "avg_trav": 0.4248,
+  "briefing": "The scene is dominated by sky and landscape, with minimal dry vegetation. Traversability scores indicate a relatively safe landscape, but caution is advised near ground objects and rocks. There are no identified risk zones. With an average traversability score of 0.425, the recommended path is the safest path, calculated using Dijkstra's method. No historical data is available. Proceed with caution and follow the safest path of 15 hops.",
+  "explanation": "Our AI terrain intelligence system successfully analyzed the environment, identifying the dominant terrain as sky and determining a safe path via TigerGraph Dijkstra. This matters for autonomous vehicles, enabling them to navigate complex scenarios. Our unique approach combines DeepLabV3+ and TigerGraph with LLM reasoning, providing accurate and efficient terrain analysis.",
+  "total_time": 2.05,
+  "model_miou": 0.6676070523295796,
+  "graph_patches": 0,
+  "graph_edges": 0,
+  "timing": {
+    "segmentation": 0.6,
+    "terrain_graph": 0.0,
+    "dijkstra": 0.0,
+    "knowledge": 0.0,
+    "llm": 1.21
+  }
+}

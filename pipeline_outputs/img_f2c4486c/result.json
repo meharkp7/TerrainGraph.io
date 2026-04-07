@@ -1,0 +1,125 @@
+{
+  "image_id": "img_f2c4486c",
+  "class_dist": {
+    "Dense_Vegetation": 0.011444091796875,
+    "Dry_Vegetation": 0.00160980224609375,
+    "Ground_Objects": 0.3061790466308594,
+    "Rocks": 0.025848388671875,
+    "Landscape": 0.2874717712402344,
+    "Sky": 0.3674468994140625
+  },
+  "path": {
+    "hop_count": 15,
+    "total_cost": 0.0,
+    "waypoints": [
+      [
+        8,
+        15
+      ],
+      [
+        8,
+        14
+      ],
+      [
+        8,
+        13
+      ],
+      [
+        8,
+        12
+      ],
+      [
+        8,
+        11
+      ],
+      [
+        8,
+        10
+      ],
+      [
+        8,
+        9
+      ],
+      [
+        8,
+        8
+      ],
+      [
+        8,
+        7
+      ],
+      [
+        8,
+        6
+      ],
+      [
+        8,
+        5
+      ],
+      [
+        8,
+        4
+      ],
+      [
+        8,
+        3
+      ],
+      [
+        8,
+        2
+      ],
+      [
+        8,
+        1
+      ],
+      [
+        8,
+        0
+      ]
+    ]
+  },
+  "risk_zones": [
+    {
+      "attributes": {
+        "class_name": "Rocks",
+        "severity": "HIGH",
+        "patch_count": 7,
+        "center_row": 7,
+        "center_col": 10
+      }
+    },
+    {
+      "attributes": {
+        "class_name": "Ground_Objects",
+        "severity": "MED_HIGH",
+        "patch_count": 74,
+        "center_row": 12,
+        "center_col": 10
+      }
+    },
+    {
+      "attributes": {
+        "class_name": "Dense_Vegetation",
+        "severity": "MED",
+        "patch_count": 1,
+        "center_row": 15,
+        "center_col": 15
+      }
+    }
+  ],
+  "similar": [],
+  "avg_trav": 0.3752,
+  "briefing": "The terrain ahead is dominated by the sky and landscape, with significant ground objects present. High-risk rock zones and med-high risk ground object zones are identified. The safest path, calculated using Dijkstra's method, involves 15 hops. With no historical traversal data available, proceed with caution. Avoid high-risk rock zones and med-high risk ground object zones. Follow the calculated safest path to minimize risk.",
+  "explanation": "Our AI terrain intelligence system leverages DeepLabV3+ and TigerGraph to accurately identify dominant terrain and risk zones, enabling autonomous vehicles to navigate safely via optimized paths, a crucial breakthrough for self-driving technology.",
+  "total_time": 30.09,
+  "model_miou": 0.6222381129301204,
+  "graph_patches": 0,
+  "graph_edges": 0,
+  "timing": {
+    "segmentation": 0.16,
+    "terrain_graph": 0.0,
+    "dijkstra": 0.0,
+    "knowledge": 0.0,
+    "llm": 29.74
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "image_id": "img_9adf1203",
+  "class_dist": {
+    "Dense_Vegetation": 0.0003,
+    "Dry_Vegetation": 0.4148,
+    "Ground_Objects": 0.0463,
+    "Rocks": 0.0249,
+    "Landscape": 0.4053,
+    "Sky": 0.1085
+  },
+  "path": {
+    "path_ids": [
+      "img_9adf1203:r15:c8",
+      "img_9adf1203:r14:c8",
+      "img_9adf1203:r13:c8",
+      "img_9adf1203:r12:c8",
+      "img_9adf1203:r12:c9",
+      "img_9adf1203:r12:c10",
+      "img_9adf1203:r11:c10",
+      "img_9adf1203:r10:c10",
+      "img_9adf1203:r9:c10",
+      "img_9adf1203:r8:c10",
+      "img_9adf1203:r7:c10",
+      "img_9adf1203:r7:c9",
+      "img_9adf1203:r6:c9",
+      "img_9adf1203:r6:c8",
+      "img_9adf1203:r5:c8",
+      "img_9adf1203:r4:c8",
+      "img_9adf1203:r3:c8",
+      "img_9adf1203:r2:c8",
+      "img_9adf1203:r1:c8",
+      "img_9adf1203:r0:c8"
+    ],
+    "hop_count": 20,
+    "total_cost": 1.825,
+    "start": [
+      15,
+      8
+    ],
+    "end": [
+      0,
+      8
+    ],
+    "method": "python_dijkstra",
+    "note": "Dijkstra optimal"
+  },
+  "risk_zones": 3,
+  "similar": 5,
+  "avg_trav": 0.7138715386390686
+}
