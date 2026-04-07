@@ -1,0 +1,46 @@
+{
+  "image_id": "img_ce9a75dc",
+  "class_dist": {
+    "Dense_Vegetation": 0.0003,
+    "Dry_Vegetation": 0.0194,
+    "Ground_Objects": 0.0002,
+    "Rocks": 0.0009,
+    "Landscape": 0.4315,
+    "Sky": 0.5477
+  },
+  "path": {
+    "path_ids": [
+      "img_ce9a75dc:r15:c8",
+      "img_ce9a75dc:r14:c8",
+      "img_ce9a75dc:r13:c8",
+      "img_ce9a75dc:r12:c8",
+      "img_ce9a75dc:r11:c8",
+      "img_ce9a75dc:r10:c8",
+      "img_ce9a75dc:r9:c8",
+      "img_ce9a75dc:r8:c8",
+      "img_ce9a75dc:r7:c8",
+      "img_ce9a75dc:r6:c8",
+      "img_ce9a75dc:r5:c8",
+      "img_ce9a75dc:r4:c8",
+      "img_ce9a75dc:r3:c8",
+      "img_ce9a75dc:r2:c8",
+      "img_ce9a75dc:r1:c8",
+      "img_ce9a75dc:r0:c8"
+    ],
+    "hop_count": 16,
+    "total_cost": 8.825,
+    "start": [
+      15,
+      8
+    ],
+    "end": [
+      0,
+      8
+    ],
+    "method": "python_dijkstra",
+    "note": "Dijkstra optimal"
+  },
+  "risk_zones": 0,
+  "similar": 4,
+  "avg_trav": 0.42480558156967163
+}

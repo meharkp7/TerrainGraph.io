@@ -107,7 +107,13 @@ def get_image(image_id: str, img_type: str):
     for filename in aliases[img_type]:
         p = base_dir / filename
         if p.exists():
-            return FileResponse(str(p), media_type="image/png")
+            return FileResponse(
+                str(p),
+                media_type="image/png",
+                headers={
+                    "ngrok-skip-browser-warning": "true"
+                }
+            )
 
     # Nothing found — list what IS there to help debug
     existing = [f.name for f in base_dir.iterdir()] if base_dir.exists() else []
