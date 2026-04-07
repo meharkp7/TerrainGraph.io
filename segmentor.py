@@ -1,6 +1,7 @@
 """
 segmentor.py — Memory-optimized for Railway (512MB RAM)
-Key changes: ResNet-50, CPU-only, 384px inference, no TTA on cloud
+Key changes: ResNet-50 on Railway, CPU-only, 384px inference, no TTA on cloud.
+Albumentations imported lazily (inside functions) to avoid ~80MB RAM hit at startup.
 """
 
 import os
@@ -12,8 +13,6 @@ from PIL import Image
 import torch
 import torch.nn.functional as F
 import segmentation_models_pytorch as smp
-import albumentations as A
-from albumentations.pytorch import ToTensorV2
 
 IS_RAILWAY = bool(os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY"))
 INFER_SIZE = int(os.getenv("INFER_SIZE", "384" if IS_RAILWAY else "512"))
@@ -24,22 +23,22 @@ CLASS_NAMES = [
 ]
 NUM_CLASSES  = len(CLASS_NAMES)
 IGNORE_INDEX = 255
-TRAVERSABILITY = {0:0.45, 1:0.75, 2:0.30, 3:0.15, 4:0.95, 5:0.00}
-RISK           = {0:"MED", 1:"LOW", 2:"MED-HIGH", 3:"HIGH", 4:"LOW", 5:"N/A"}
+TRAVERSABILITY = {0: 0.45, 1: 0.75, 2: 0.30, 3: 0.15, 4: 0.95, 5: 0.00}
+RISK           = {0: "MED", 1: "LOW", 2: "MED-HIGH", 3: "HIGH", 4: "LOW", 5: "N/A"}
 PALETTE = np.array([
-    [34,139,34],[210,180,140],[139,90,43],
-    [128,128,128],[205,133,63],[135,206,235]
+    [34, 139, 34], [210, 180, 140], [139, 90, 43],
+    [128, 128, 128], [205, 133, 63], [135, 206, 235]
 ], dtype=np.uint8)
 
 
 def _build_model(arch, encoder):
     arch = arch.lower()
-    kw   = dict(encoder_name=encoder, encoder_weights=None,
-                in_channels=3, classes=NUM_CLASSES)
-    if arch in ("deeplabv3+","deeplabv3"): return smp.DeepLabV3Plus(**kw)
-    if arch == "unet++":                   return smp.UnetPlusPlus(**kw)
-    if arch == "fpn":                      return smp.FPN(**kw)
-    return smp.DeepLabV3Plus(**kw)          # fallback
+    kw = dict(encoder_name=encoder, encoder_weights=None,
+              in_channels=3, classes=NUM_CLASSES)
+    if arch in ("deeplabv3+", "deeplabv3"): return smp.DeepLabV3Plus(**kw)
+    if arch == "unet++":                    return smp.UnetPlusPlus(**kw)
+    if arch == "fpn":                       return smp.FPN(**kw)
+    return smp.DeepLabV3Plus(**kw)   # fallback
 
 
 def load_model(checkpoint_path: str) -> tuple:
@@ -66,12 +65,23 @@ def load_model(checkpoint_path: str) -> tuple:
     return model, device, cfg
 
 
-def preprocess(image_path: str, img_size=INFER_SIZE):
-    tf = A.Compose([
+def _get_transforms(img_size: int):
+    """
+    Import albumentations lazily — it adds ~80MB of RAM on first import.
+    Keeping it here means it only loads when the first image is actually processed,
+    not at uvicorn startup (which is what was causing the Railway healthcheck to fail).
+    """
+    import albumentations as A
+    from albumentations.pytorch import ToTensorV2
+    return A.Compose([
         A.Resize(height=img_size, width=img_size),
-        A.Normalize(mean=(0.485,0.456,0.406), std=(0.229,0.224,0.225)),
+        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ToTensorV2(),
     ])
+
+
+def preprocess(image_path: str, img_size=INFER_SIZE):
+    tf     = _get_transforms(img_size)
     img_np = np.array(Image.open(image_path).convert("RGB"))
     tensor = tf(image=img_np)["image"].unsqueeze(0).float()
     return tensor, img_np
@@ -83,34 +93,39 @@ def predict(model, device, image_path: str,
     tensor, orig_np = preprocess(image_path, img_size)
     inp    = tensor.to(device)
     logits = model(inp)
-    logits = F.interpolate(logits, size=(img_size,img_size),
+    logits = F.interpolate(logits, size=(img_size, img_size),
                            mode="bilinear", align_corners=False)
     if use_tta and not IS_RAILWAY:
-        fl  = torch.flip(inp, dims=[-1])
-        lf  = F.interpolate(model(fl), size=(img_size,img_size),
-                            mode="bilinear", align_corners=False)
+        fl     = torch.flip(inp, dims=[-1])
+        lf     = F.interpolate(model(fl), size=(img_size, img_size),
+                               mode="bilinear", align_corners=False)
         logits = (logits + torch.flip(lf, dims=[-1])) / 2.0
 
     pred_mask  = logits.argmax(dim=1).squeeze(0).cpu().numpy()
-    confidence = torch.softmax(logits,dim=1).max(dim=1).values\
+    confidence = torch.softmax(logits, dim=1).max(dim=1).values \
                       .squeeze(0).cpu().numpy()
-    del logits, inp; gc.collect()
+    del logits, inp
+    gc.collect()
 
-    class_dist = {n: round(float((pred_mask==i).mean()),4)
-                  for i,n in enumerate(CLASS_NAMES)}
+    class_dist = {n: round(float((pred_mask == i).mean()), 4)
+                  for i, n in enumerate(CLASS_NAMES)}
     trav_map   = np.zeros_like(pred_mask, dtype=np.float32)
-    for ci,sc in TRAVERSABILITY.items(): trav_map[pred_mask==ci] = sc
+    for ci, sc in TRAVERSABILITY.items():
+        trav_map[pred_mask == ci] = sc
 
-    color_mask = np.zeros((*pred_mask.shape,3), dtype=np.uint8)
-    for c in range(NUM_CLASSES): color_mask[pred_mask==c] = PALETTE[c]
+    color_mask = np.zeros((*pred_mask.shape, 3), dtype=np.uint8)
+    for c in range(NUM_CLASSES):
+        color_mask[pred_mask == c] = PALETTE[c]
 
     orig_r  = np.array(Image.fromarray(orig_np).resize(
-                (img_size,img_size), Image.BILINEAR))
-    overlay = (orig_r*0.5 + color_mask*0.5).astype(np.uint8)
+                (img_size, img_size), Image.BILINEAR))
+    overlay = (orig_r * 0.5 + color_mask * 0.5).astype(np.uint8)
 
-    return {"mask":pred_mask,"confidence":confidence,"class_dist":class_dist,
-            "trav_map":trav_map,"color_mask":color_mask,
-            "overlay":overlay,"orig_np":orig_r}
+    return {
+        "mask": pred_mask, "confidence": confidence, "class_dist": class_dist,
+        "trav_map": trav_map, "color_mask": color_mask,
+        "overlay": overlay, "orig_np": orig_r,
+    }
 
 
 class Segmentor:
@@ -119,7 +134,7 @@ class Segmentor:
         "./runs/deeplabv3+_20260403_211623/best.pth",
         "./runs/deeplabv3+_20260403_211706/best.pth",
         "./runs/deeplabv3+_20260404_204700/best.pth",
-        "./best_model.pth","./best_model2.pth","./dino_best.pth",
+        "./best_model.pth", "./best_model2.pth", "./dino_best.pth",
     ]
 
     def __init__(self, checkpoint_path=None):
@@ -130,14 +145,16 @@ class Segmentor:
                                    weights_only=False)
         self.miou     = float(ckpt.get("miou", 0.0))
         self.img_size = INFER_SIZE
-        del ckpt; gc.collect()
+        del ckpt
+        gc.collect()
 
     def _find_ckpt(self):
         runs = sorted(Path("runs").glob("*/best.pth")) \
                if Path("runs").exists() else []
         for p in self._SEARCH + [str(r) for r in runs]:
             if Path(p).exists():
-                print(f"  Checkpoint: {p}"); return p
+                print(f"  Checkpoint: {p}")
+                return p
         raise FileNotFoundError("No checkpoint found. Searched:\n" +
                                 "\n".join(f"  {p}" for p in self._SEARCH))
 
@@ -155,12 +172,13 @@ class Segmentor:
 
 if __name__ == "__main__":
     import sys
-    ckpt  = sys.argv[1] if len(sys.argv)>1 else "./runs/deeplabv3+_20260403_211706/best.pth"
-    img   = sys.argv[2] if len(sys.argv)>2 else "./dataset/val/Color_Images"
+    ckpt = sys.argv[1] if len(sys.argv) > 1 else "./runs/deeplabv3+_20260403_211706/best.pth"
+    img  = sys.argv[2] if len(sys.argv) > 2 else "./dataset/val/Color_Images"
     if Path(img).is_dir():
         imgs = list(Path(img).glob("*.png"))[:1]
-        if imgs: img = str(imgs[0])
+        if imgs:
+            img = str(imgs[0])
     m, dev, _ = load_model(ckpt)
     res = predict(m, dev, img)
     for name, pct in res["class_dist"].items():
-        print(f"  {name:25s}: {pct:.1%}  {'█'*int(pct*40)}")
+        print(f"  {name:25s}: {pct:.1%}  {'█' * int(pct * 40)}")
