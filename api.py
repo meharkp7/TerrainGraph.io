@@ -152,27 +152,38 @@ async def analyze(file: UploadFile = File(...)):
 
 
 # ── Image serving ──────────────────────────────────────────────────────────────
+from fastapi.responses import FileResponse
+
 @app.get("/image/{image_id}/{img_type}")
 def get_image(image_id: str, img_type: str):
     valid = {"original", "segmented", "overlay", "path"}
     if img_type not in valid:
         raise HTTPException(400, f"img_type must be one of {valid}")
+
     base = OUTPUT_DIR / image_id
     if not base.exists():
         raise HTTPException(404, f"No outputs for '{image_id}'")
+
     aliases = {
         "original":  ["original.png", "input.png"],
         "segmented": ["segmented.png", "segmentation.png", "colored_mask.png"],
         "overlay":   ["overlay.png", "blend.png", "segmented.png"],
         "path":      ["path.png", "path_viz.png", "overlay.png", "segmented.png"],
     }
+
     for fname in aliases[img_type]:
         p = base / fname
         if p.exists():
-            return FileResponse(str(p), media_type="image/png")
+            return FileResponse(
+                str(p),
+                media_type="image/png",
+                headers={
+                    "ngrok-skip-browser-warning": "true"
+                }
+            )
+
     existing = [f.name for f in base.iterdir()]
     raise HTTPException(404, f"'{img_type}' not found. Available: {existing}")
-
 
 @app.get("/debug/{image_id}")
 def debug(image_id: str):

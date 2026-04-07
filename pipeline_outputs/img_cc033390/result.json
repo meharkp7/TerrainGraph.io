@@ -1,0 +1,116 @@
+{
+  "image_id": "img_cc033390",
+  "class_dist": {
+    "Dense_Vegetation": 0.000560760498046875,
+    "Dry_Vegetation": 0.3875999450683594,
+    "Ground_Objects": 0.03136444091796875,
+    "Rocks": 0.023937225341796875,
+    "Landscape": 0.3487892150878906,
+    "Sky": 0.2077484130859375
+  },
+  "path": {
+    "hop_count": 15,
+    "total_cost": 0.0,
+    "waypoints": [
+      [
+        8,
+        15
+      ],
+      [
+        8,
+        14
+      ],
+      [
+        8,
+        13
+      ],
+      [
+        8,
+        12
+      ],
+      [
+        8,
+        11
+      ],
+      [
+        8,
+        10
+      ],
+      [
+        8,
+        9
+      ],
+      [
+        8,
+        8
+      ],
+      [
+        8,
+        7
+      ],
+      [
+        8,
+        6
+      ],
+      [
+        8,
+        5
+      ],
+      [
+        8,
+        4
+      ],
+      [
+        8,
+        3
+      ],
+      [
+        8,
+        2
+      ],
+      [
+        8,
+        1
+      ],
+      [
+        8,
+        0
+      ]
+    ]
+  },
+  "risk_zones": [
+    {
+      "attributes": {
+        "class_name": "Rocks",
+        "severity": "HIGH",
+        "patch_count": 2,
+        "center_row": 6,
+        "center_col": 11
+      }
+    },
+    {
+      "attributes": {
+        "class_name": "Ground_Objects",
+        "severity": "MED_HIGH",
+        "patch_count": 5,
+        "center_row": 11,
+        "center_col": 10
+      }
+    }
+  ],
+  "similar": [],
+  "avg_trav": 0.6353,
+  "briefing": "The terrain ahead is composed of dry vegetation, ground objects, rocks, and landscape features. The safest path, calculated using Dijkstra's method, involves 15 hops with no added cost. However, beware of HIGH risk Rocks and MED_HIGH risk Ground Objects zones. With no historical data available, rely on current traversability scores. Follow the recommended 15-hop path to minimize risk. Proceed with caution along this route.",
+  "explanation": "Our AI terrain intelligence system analyzed the environment, identifying 38.8% as dry vegetation and pinpointing 2 risk zones. It then computed a safe path using TigerGraph Dijkstra, leveraging DeepLabV3+ and LLM reasoning. This approach enables autonomous vehicles to navigate complex terrain, enhancing safety and efficiency, and its unique fusion of computer vision and graph-based reasoning sets it apart.",
+  "total_time": 2.28,
+  "model_miou": 0.6676070523295796,
+  "graph_patches": 0,
+  "graph_edges": 0,
+  "timing": {
+    "segmentation": 0.61,
+    "terrain_graph": 0.0,
+    "dijkstra": 0.0,
+    "knowledge": 0.0,
+    "llm": 1.48
+  }
+}
