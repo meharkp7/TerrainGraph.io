@@ -5,7 +5,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence, useSpring, useTransform } from "framer-motion";
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = "https://rosaline-beeriest-camie.ngrok-free.dev";
 
 const CLASS_META = {
   Dense_Vegetation: { color: "#22c55e", dim: "#14532d", label: "Dense Veg", trav: 0.45, risk: "MED" },

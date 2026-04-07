@@ -6,9 +6,9 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      '/analyze': 'http://localhost:8000',
-      '/image':   'http://localhost:8000',
-      '/health':  'http://localhost:8000',
+      '/analyze': 'https://rosaline-beeriest-camie.ngrok-free.dev',
+      '/image':   'https://rosaline-beeriest-camie.ngrok-free.dev',
+      '/health':  'https://rosaline-beeriest-camie.ngrok-free.dev',
     }
   }
 })
