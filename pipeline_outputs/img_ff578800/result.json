@@ -1,0 +1,107 @@
+{
+  "image_id": "img_ff578800",
+  "class_dist": {
+    "Dense_Vegetation": 0.00060272216796875,
+    "Dry_Vegetation": 0.5539512634277344,
+    "Ground_Objects": 0.012233734130859375,
+    "Rocks": 0.025882720947265625,
+    "Landscape": 0.3169593811035156,
+    "Sky": 0.09037017822265625
+  },
+  "path": {
+    "hop_count": 15,
+    "total_cost": 0.0,
+    "waypoints": [
+      [
+        8,
+        15
+      ],
+      [
+        8,
+        14
+      ],
+      [
+        8,
+        13
+      ],
+      [
+        8,
+        12
+      ],
+      [
+        8,
+        11
+      ],
+      [
+        8,
+        10
+      ],
+      [
+        8,
+        9
+      ],
+      [
+        8,
+        8
+      ],
+      [
+        8,
+        7
+      ],
+      [
+        8,
+        6
+      ],
+      [
+        8,
+        5
+      ],
+      [
+        8,
+        4
+      ],
+      [
+        8,
+        3
+      ],
+      [
+        8,
+        2
+      ],
+      [
+        8,
+        1
+      ],
+      [
+        8,
+        0
+      ]
+    ]
+  },
+  "risk_zones": [
+    {
+      "attributes": {
+        "class_name": "Rocks",
+        "severity": "HIGH",
+        "patch_count": 5,
+        "center_row": 8,
+        "center_col": 11
+      }
+    }
+  ],
+  "similar": [],
+  "avg_trav": 0.7244,
+  "briefing": "The terrain ahead is composed of dry vegetation and landscape, with rocks posing a HIGH risk. The safest path, determined by Dijkstra's method, involves 15 hops. No historical traversability data is available. To navigate this terrain, follow the recommended 15-hop path to minimize risk, avoiding the 5 patches of rocky terrain. Proceed with caution along the safest path.",
+  "explanation": "Our AI terrain intelligence system analyzed the environment, identifying 55.4% as dry vegetation and pinpointing one risk zone. It then computed a safe 15-hop path using TigerGraph Dijkstra, leveraging DeepLabV3+ and LLM reasoning for unparalleled accuracy, with a model mIoU of 0.6676, enabling autonomous vehicles to navigate complex terrain with enhanced safety and efficiency.",
+  "total_time": 31.19,
+  "model_miou": 0.6676070523295796,
+  "graph_patches": 0,
+  "graph_edges": 0,
+  "timing": {
+    "segmentation": 0.52,
+    "terrain_graph": 0.0,
+    "dijkstra": 0.0,
+    "knowledge": 0.0,
+    "llm": 30.48
+  }
+}

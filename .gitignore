@@ -12,4 +12,3 @@ __pycache__/
 .DS_Store
 runs/
 *.png
-*.json
