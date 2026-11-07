@@ -1,0 +1,19 @@
+# Keep local-only bulk out of the Docker build context.
+# (Railway builds from git, where most of this is already ignored —
+# this also keeps local `docker build` fast and the image lean.)
+.venv/
+__pycache__/
+.git/
+.gitignore
+.env
+dataset/
+runs/
+pipeline_outputs/
+node_modules/
+frontend/node_modules/
+frontend/dist/
+*.pyc
+*.pth
+*.pt
+.DS_Store
+allfiles.txt

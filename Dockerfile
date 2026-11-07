@@ -13,14 +13,21 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Python deps
+# Upgrade pip first: base-image pip rejects the typing_extensions wheel
+# (metadata Name mismatch) and falls back to an sdist that needs flit_core.
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # App code
 COPY . .
 
-# Download model at build time from HuggingFace
-ARG HF_MODEL_REPO
+# Download model at build time from HuggingFace.
+# ARG alone is not visible to `python download_model.py` (it reads the
+# environment), so promote it to ENV with the public repo as default.
+ARG HF_MODEL_REPO=mk1647/terrain-intelligence
+ENV HF_MODEL_REPO=${HF_MODEL_REPO} \
+    MODEL_CHECKPOINT=/app/runs/deployed/best.pth
 RUN python download_model.py
 
 EXPOSE 8000

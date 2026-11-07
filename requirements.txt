@@ -26,3 +26,17 @@ pyTigerGraph==1.8.0
 
 # --- Diagnostics (lightweight, helps debug OOM on Railway) ---
 psutil==5.9.8
+
+# --- LLM briefing providers (explainer.py tries Groq → Gemini → Claude) ---
+# All optional at runtime (template fallback), but install them so deployed
+# backends actually use the keys instead of silently falling back.
+groq>=1.0
+google-generativeai>=0.8
+anthropic>=0.40
+
+# --- HuggingFace (model download + Space demo) ---
+# Needed by download_model.py, pipeline_hf.py and app.py (Gradio demo).
+# Same file serves Railway (FastAPI) and HF Spaces (Gradio) — keep in sync.
+huggingface_hub>=0.24
+matplotlib>=3.8
+gradio>=5.0
