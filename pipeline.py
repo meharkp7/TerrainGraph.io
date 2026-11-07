@@ -16,24 +16,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from segmentor     import load_model, predict, CLASS_NAMES, NUM_CLASSES
-from terrain_graph import (
-    get_connection,
-    upload_terrain,
-    get_risk_zones,
-    find_similar_terrains,
-    draw_path_on_mask,
-)
+# NOTE: segmentor (torch) and terrain_graph (pyTigerGraph) are imported
+# LAZILY inside get_model()/run_pipeline(), never at module level. Importing
+# torch takes 30-60s and ~500MB — doing it at import would keep uvicorn from
+# listening and fail Railway healthchecks on small instances.
 from explainer import (
     generate_navigation_briefing,
     generate_system_explanation,
 )
 
 # ─────────────────────────────────────────────
-# MODEL + CONNECTION
-# The model (550MB) loads LAZILY on first run_pipeline() call — never at
-# import. This keeps container boot light so small Railway instances pass
-# their healthcheck instead of getting OOM-killed during startup.
+# MODEL + CONNECTION — both lazy (see import note above).
 # ─────────────────────────────────────────────
 
 CHECKPOINT = os.getenv(
@@ -46,21 +39,32 @@ _model = None
 _device = None
 _cfg = None
 _model_lock = threading.Lock()
+_conn = None
 
-print("Connecting to TigerGraph...")
-conn = get_connection()
-print("✅ Pipeline module ready (model loads on first request)\n")
+print("✅ Pipeline module ready (torch + model load on first request)\n")
 
 
 def get_model():
-    """Load the segmentation model once, thread-safely. First call is slow."""
+    """Import torch and load the model once, thread-safely. Slow first call."""
     global _model, _device, _cfg
     if _model is None:
         with _model_lock:
             if _model is None:
+                print("Importing torch/segmentor...", flush=True)
+                from segmentor import load_model
                 print("Loading model...", flush=True)
                 _model, _device, _cfg = load_model(CHECKPOINT)
     return _model, _device, _cfg
+
+
+def get_conn():
+    """Create the TigerGraph connection object once (cheap, no I/O)."""
+    global _conn
+    if _conn is None:
+        from terrain_graph import get_connection
+        print("Connecting to TigerGraph...", flush=True)
+        _conn = get_connection()
+    return _conn
 
 
 def is_model_loaded() -> bool:
@@ -94,11 +98,20 @@ def run_pipeline(image_path: str,
     print(f"Image ID : {image_id}")
     print(f"{'='*60}")
 
+    from segmentor import predict as seg_predict
+    from terrain_graph import (
+        upload_terrain,
+        get_risk_zones,
+        find_similar_terrains,
+        draw_path_on_mask,
+    )
+    conn = get_conn()
+
     # ── Step 1: Segmentation ──────────────────────────────────
     print("\n[1/4] Segmentation...")
     t0 = time.time()
     model, device, _ = get_model()
-    seg = predict(model, device, image_path, use_tta=use_tta)
+    seg = seg_predict(model, device, image_path, use_tta=use_tta)
     print(f"      Done in {time.time()-t0:.1f}s")
     print("      Class distribution:")
     for name, pct in seg["class_dist"].items():

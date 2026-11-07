@@ -50,12 +50,14 @@ literally. The repo wraps the command in `sh -c '... ${PORT:-8000}'`
 
 **Container prints `Killed` with no traceback?** That's the OOM killer —
 the 550MB model plus torch exceeds the service's RAM. Mitigations already
-in the repo: lazy model load (boot stays light, `/health` passes),
-memory-mapped weight loading, capped BLAS threads, single worker. If it
-still dies, check Metrics → Memory to confirm the spike, then raise the
-service memory limit (Settings → Resources) — a ResNet-101 fp32 model
-realistically wants ≥2GB. The first `/analyze` after a deploy takes
-~30–60s (one-time model load); that is normal.
+in the repo: torch/model/connection all load lazily on first `/analyze`
+(boot is seconds, `/health` passes immediately), memory-mapped weight
+loading, capped BLAS threads, single worker. If it still dies, check
+Metrics → Memory to confirm the spike, then raise the service memory
+limit (Settings → Resources) — a ResNet-101 fp32 model realistically
+wants ≥2GB. The first `/analyze` after a deploy takes ~1–2 min (one-time
+torch import + model load); after that it stays warm. If that first
+request times out at the edge, just retry — the load continues.
 
 ## Temporary tunnels (when Railway isn't up)
 
