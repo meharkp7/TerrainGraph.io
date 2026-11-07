@@ -1,16 +1,44 @@
-# React + Vite
+# TerrainGraph AI — Dashboard (React + Vite)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Live monitoring UI for the TerrainGraph backend: upload → segmentation,
+Dijkstra safe path, risk zones, traversability charts, LLM briefing.
 
-Currently, two official plugins are available:
+## Run
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+npm install
+cp .env.example .env.local   # VITE_API_BASE=http://localhost:8000
+npm run dev                  # → http://localhost:3000 (proxies /analyze /image /health)
+```
 
-## React Compiler
+Production: `npm run build` → `dist/` (deployed on Vercel, root dir `frontend/`).
+Set **`VITE_API_BASE`** to the public backend URL — it's baked in at build time.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Backend contract
 
-## Expanding the ESLint configuration
+All API access goes through [`src/api.js`](src/api.js):
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+| Call | Endpoint |
+|---|---|
+| `checkHealth()` | `GET /health` → header status pill + offline banner |
+| `analyzeImage(file)` | `POST /analyze` (multipart `file`) → full result JSON |
+| `imageUrl(id, type)` | `GET /image/{id}/{original\|segmented\|overlay\|path}` |
+
+Full request/response shapes: [`../docs/API.md`](../docs/API.md).
+Requests send `ngrok-skip-browser-warning` so ngrok-hosted backends work.
+
+## Layout
+
+```
+src/
+  main.jsx                 # entry (imports App + index.css)
+  App.jsx                  # renders TerrainIntelligence
+  TerrainIntelligence.jsx  # dashboard: upload, viewer tabs, charts, briefing, logs
+  api.js                   # backend client (base URL, health, analyze, image URLs)
+  index.css                # page shell + responsive grid breakpoints
+```
+
+- Charts use the `chart.js` npm package (bundled, works offline).
+- Upload via click, drag-drop, or paste (images ≤ 15 MB).
+- Grids collapse at 1100 px (two columns) and 760 px (single column).
+- `WHY IT WORKS` tab shows the `explanation` field from `/analyze`.
