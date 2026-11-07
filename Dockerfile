@@ -34,4 +34,6 @@ RUN python download_model.py
 
 EXPOSE 8000
 
-CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]
+# Same PORT handling as railway.toml, so plain `docker run -e PORT=...`
+# works too (Railway's startCommand overrides this CMD when deployed there).
+CMD ["sh", "-c", "uvicorn api:app --host 0.0.0.0 --port ${PORT:-8000}"]

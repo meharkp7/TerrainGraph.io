@@ -43,6 +43,11 @@ see it anyway, you're not building the repo `Dockerfile` — see above.
 transitional package. The repo `Dockerfile` uses its replacement `libgl1` —
 pull the latest `main` if your build still references the old name.
 
+**`'${PORT}' is not a valid integer` at container start?** Railway runs
+`startCommand` without a shell, so `${PORT}` was passed to uvicorn
+literally. The repo wraps the command in `sh -c '... ${PORT:-8000}'`
+(both in `railway.toml` and the `Dockerfile` CMD) so the variable expands.
+
 ## Temporary tunnels (when Railway isn't up)
 
 **ngrok, permanent-ish (free):** reserve one free static domain at

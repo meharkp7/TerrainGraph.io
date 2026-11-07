@@ -3,7 +3,10 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "uvicorn api:app --host 0.0.0.0 --port ${PORT}"
+# sh -c wrapper: Railway passes startCommand without a shell, so a bare
+# ${PORT} reaches uvicorn literally ("not a valid integer"). The shell
+# expands it; default 8000 keeps local/docker runs working.
+startCommand = "sh -c 'uvicorn api:app --host 0.0.0.0 --port ${PORT:-8000}'"
 healthcheckPath = "/health"
 # Increased from 10 → 120: uvicorn + torch cold-start easily takes 30-60s on Railway
 healthcheckTimeout = 120
