@@ -119,12 +119,15 @@ The Space deploys **from this repo** and serves two roles: the human demo
 (`Demo` tab) and the machine endpoint the Railway backend calls
 (`API` tab, `/segment` → `mask.png` + `conf.png` + `class_dist` JSON).
 
-1. Create a Space (Gradio SDK, CPU hardware) backed by / mirroring this
-   GitHub repo, or push directly:
+1. Use the existing Space `mk1647/devcation_tg` (Gradio SDK, CPU).
+   Push this repo's `main` to it (HF login required — use a write token
+   as the password):
    ```bash
-   git remote add hf https://huggingface.co/spaces/<user>/<space>
+   git remote add hf https://huggingface.co/spaces/mk1647/devcation_tg
    git push hf main
    ```
+   The Space rebuilds from `app.py` + root `requirements.txt` (~5–10 min
+   for the torch stack). Creating a fresh Space instead works the same way.
 2. Space entrypoint is `app.py`; dependencies come from the root
    `requirements.txt` (torch CPU stack + `gradio` + `huggingface_hub`).
    Do NOT point the Space at `requirements-railway.txt` (no torch there).
