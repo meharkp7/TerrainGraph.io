@@ -9,6 +9,8 @@ fastapi==0.129.0
 uvicorn==0.40.0
 python-dotenv==1.2.2
 requests==2.33.0
+# Required by FastAPI File()/Form() — must be explicit; nothing else pulls it
+python-multipart>=0.0.18
 
 # --- Space inference client (pure HTTP, no torch) ---
 gradio_client>=1.0
