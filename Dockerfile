@@ -3,8 +3,10 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # System deps
-RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx \
+# NOTE: libgl1 (not libgl1-mesa-glx) — the -glx transitional package was
+# removed in Debian trixie, which python:3.11-slim is now based on.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
     libglib2.0-0 \
     libsm6 \
     libxext6 \

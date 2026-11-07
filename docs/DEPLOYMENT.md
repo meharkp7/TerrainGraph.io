@@ -38,6 +38,11 @@ broken: `--index-url` *replaces* PyPI, so transitive build deps
 old-pip wheel rejection that triggers the `flit_core` sdist path. If you
 see it anyway, you're not building the repo `Dockerfile` — see above.
 
+**`Package 'libgl1-mesa-glx' has no installation candidate`?** The
+`python:3.11-slim` base moved to Debian trixie, which dropped that
+transitional package. The repo `Dockerfile` uses its replacement `libgl1` —
+pull the latest `main` if your build still references the old name.
+
 ## Temporary tunnels (when Railway isn't up)
 
 **ngrok, permanent-ish (free):** reserve one free static domain at
