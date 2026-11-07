@@ -59,6 +59,12 @@ wants ≥2GB. The first `/analyze` after a deploy takes ~1–2 min (one-time
 torch import + model load); after that it stays warm. If that first
 request times out at the edge, just retry — the load continues.
 
+**Deploy green + internal `/health` 200, but public URL gives 502
+`connection refused`?** The edge is routing to a different internal port
+than the app listens on. The app binds Railway's `$PORT` (8080); keep the
+`Dockerfile`'s `EXPOSE` on the same port, and check the domain's target
+port under service Settings → Networking.
+
 ## Temporary tunnels (when Railway isn't up)
 
 **ngrok, permanent-ish (free):** reserve one free static domain at

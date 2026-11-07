@@ -38,7 +38,11 @@ ENV HF_MODEL_REPO=${HF_MODEL_REPO} \
     MODEL_CHECKPOINT=/app/runs/deployed/best.pth
 RUN python download_model.py
 
-EXPOSE 8000
+# Railway assigns PORT=8080 and routes public traffic using the exposed port,
+# so EXPOSE must match — 8000 here caused 502 connection-refused while the
+# internal healthcheck on 8080 passed. (Plain docker runs still default to
+# ${PORT:-8000} via the CMD below.)
+EXPOSE 8080
 
 # Same PORT handling as railway.toml, so plain `docker run -e PORT=...`
 # works too (Railway's startCommand overrides this CMD when deployed there).
