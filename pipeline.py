@@ -40,6 +40,26 @@ MODEL_MIOU = 0.6676
 # Railway free tier must use "space" — see docs/DEPLOYMENT.md.
 INFERENCE_BACKEND = os.getenv("INFERENCE_BACKEND", "local").strip().lower()
 
+
+def _default_graph_backend() -> str:
+    # Kuzu is free and embedded (preferred); fall back to TigerGraph only
+    # where the kuzu driver can't be installed (e.g. local Python 3.14
+    # macOS has no wheel). Explicit GRAPH_BACKEND always wins.
+    try:
+        import kuzu  # noqa: F401
+        return "kuzu"
+    except ImportError:
+        return "tigergraph"
+
+
+# Graph store: "kuzu" (embedded, free) or "tigergraph" (cloud, needs credits).
+GRAPH_BACKEND = (os.getenv("GRAPH_BACKEND", "").strip().lower()
+                 or _default_graph_backend())
+
+
+def graph_store_name() -> str:
+    return "TigerGraph" if GRAPH_BACKEND == "tigergraph" else "Kuzu"
+
 _model = None
 _device = None
 _cfg = None
@@ -64,21 +84,25 @@ def get_model():
 
 def get_conn():
     """
-    Create the TigerGraph connection object once (cheap, no I/O).
+    Create the graph connection object once (cheap, no I/O).
     Returns None when the connection can't be built (bad creds, version
-    quirk, network) — every downstream use already catches failures, so
-    the pipeline degrades to local path/zones instead of crashing.
-    Distinguishes "not tried yet" (_conn is None + flag) from failure.
+    quirk, network, missing driver) — every downstream use already catches
+    failures, so the pipeline degrades to local path/zones instead of
+    crashing. Distinguishes "not tried yet" (_conn is None + flag).
     """
     global _conn
     if _conn is None and not getattr(get_conn, "_tried", False):
         get_conn._tried = True
         try:
-            from terrain_graph import get_connection
-            print("Connecting to TigerGraph...", flush=True)
+            if GRAPH_BACKEND == "tigergraph":
+                from terrain_graph import get_connection
+                print("Connecting to TigerGraph...", flush=True)
+            else:
+                from kuzu_graph import get_connection
+                print("Opening Kuzu graph...", flush=True)
             _conn = get_connection()
         except Exception as e:
-            print(f"⚠️  TigerGraph connection failed ({e}) — "
+            print(f"⚠️  Graph connection ({GRAPH_BACKEND}) failed ({e}) — "
                   f"continuing with local results only", flush=True)
             _conn = None
     return _conn
@@ -115,12 +139,19 @@ def run_pipeline(image_path: str,
     print(f"Image ID : {image_id}")
     print(f"{'='*60}")
 
-    from terrain_graph import (
-        upload_terrain,
-        get_risk_zones,
-        find_similar_terrains,
-        draw_path_on_mask,
-    )
+    from terrain_graph import draw_path_on_mask
+    if GRAPH_BACKEND == "tigergraph":
+        from terrain_graph import (
+            upload_terrain,
+            get_risk_zones,
+            find_similar_terrains,
+        )
+    else:
+        from kuzu_graph import (
+            upload_terrain,
+            get_risk_zones,
+            find_similar_terrains,
+        )
     conn = get_conn()
 
     # ── Step 1: Segmentation ──────────────────────────────────
@@ -191,12 +222,14 @@ def run_pipeline(image_path: str,
         risk_zones         = risk_zones,
         similar_terrains   = similar,
         avg_traversability = float(seg["trav_map"].mean()),
+        graph_store        = graph_store_name(),
     )
     explanation = generate_system_explanation(
         class_dist  = seg["class_dist"],
         path_result = path_result,
         risk_zones  = risk_zones,
         model_miou  = MODEL_MIOU,
+        graph_store = graph_store_name(),
     )
     print(f"      Done in {time.time()-t0:.1f}s")
 

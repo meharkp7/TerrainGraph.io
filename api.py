@@ -19,7 +19,8 @@ from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 
-from pipeline import run_pipeline, is_model_loaded, INFERENCE_BACKEND, MODEL_MIOU
+from pipeline import run_pipeline, is_model_loaded, INFERENCE_BACKEND, \
+    GRAPH_BACKEND, MODEL_MIOU
 from segmentor_space import SpaceInferenceError
 
 app = FastAPI(
@@ -57,6 +58,7 @@ def health():
         "model_loaded":      is_model_loaded(),
         "model_miou":        MODEL_MIOU,
         "inference_backend": INFERENCE_BACKEND,
+        "graph_backend":     GRAPH_BACKEND,
         "tigergraph":        os.getenv("TIGERGRAPH_HOST", "not set"),
     }
     if INFERENCE_BACKEND == "space":

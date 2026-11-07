@@ -104,7 +104,8 @@ def _call_llm(prompt: str, max_tokens: int = 200):
 
 def _template_briefing(class_dist, path_result,
                         risk_zones, similar_terrains,
-                        avg_traversability) -> str:
+                        avg_traversability,
+                        graph_store="TigerGraph") -> str:
     dominant  = max(class_dist, key=class_dist.get)
     dom_pct   = class_dist[dominant] * 100
     hops      = path_result.get("hop_count", 0)
@@ -121,14 +122,14 @@ def _template_briefing(class_dist, path_result,
 
     risk_str = ", ".join(risk_names) if risk_names \
                else "none detected"
-    mem_str  = (f"TigerGraph memory matched {n_similar} "
+    mem_str  = (f"{graph_store} memory matched {n_similar} "
                 f"similar past terrains. ") \
                if n_similar > 0 else ""
 
     return (
         f"Scene is {dom_pct:.0f}% "
         f"{dominant.replace('_',' ')} with average "
-        f"traversability {trav_pct:.0f}%. TigerGraph "
+        f"traversability {trav_pct:.0f}%. {graph_store} "
         f"Dijkstra identified a {hops}-hop safe path. "
         f"Risk zones: {risk_str}. {mem_str}"
         f"Recommendation: proceed via Landscape and "
@@ -137,13 +138,14 @@ def _template_briefing(class_dist, path_result,
 
 
 def _template_explanation(class_dist, path_result,
-                           risk_zones, model_miou) -> str:
+                           risk_zones, model_miou,
+                           graph_store="TigerGraph") -> str:
     dominant = max(class_dist, key=class_dist.get)
     hops     = path_result.get("hop_count", 0)
     n_risks  = len(risk_zones)
     return (
         f"This system fuses DeepLabV3+ segmentation "
-        f"(mIoU={model_miou:.4f}) with TigerGraph spatial "
+        f"(mIoU={model_miou:.4f}) with {graph_store} spatial "
         f"reasoning for autonomous desert navigation. The "
         f"{dominant.replace('_',' ')}-dominated scene was "
         f"decomposed into a traversability graph, with "
@@ -163,6 +165,7 @@ def generate_navigation_briefing(
     risk_zones:         list,
     similar_terrains:   list,
     avg_traversability: float,
+    graph_store:        str = "TigerGraph",
 ) -> str:
     context = {
         "scene_composition": {
@@ -201,7 +204,7 @@ def generate_navigation_briefing(
     prompt = f"""You are an AI terrain analyst for an autonomous \
 offroad vehicle (UGV) in desert terrain.
 
-Based ONLY on this TigerGraph data, write a navigation briefing \
+Based ONLY on this {graph_store} data, write a navigation briefing \
 (max 100 words, flowing prose, no bullet points):
 
 {json.dumps(context, indent=2)}
@@ -217,7 +220,7 @@ Rules:
     return result if result else _template_briefing(
         class_dist, path_result,
         risk_zones, similar_terrains,
-        avg_traversability,
+        avg_traversability, graph_store,
     )
 
 
@@ -226,6 +229,7 @@ def generate_system_explanation(
     path_result: dict,
     risk_zones:  list,
     model_miou:  float,
+    graph_store: str = "TigerGraph",
 ) -> str:
     dominant = max(class_dist, key=class_dist.get)
     n_risks  = len(risk_zones)
@@ -239,7 +243,7 @@ System results:
 - Dominant terrain: {dominant} \
 ({class_dist.get(dominant,0)*100:.1f}%)
 - Risk zones found: {n_risks}
-- Safe path: {hops} hops via TigerGraph Dijkstra
+- Safe path: {hops} hops via {graph_store} Dijkstra
 - Model mIoU: {model_miou:.4f}
 - Stack: DeepLabV3+ → TigerGraph → LLM reasoning
 
@@ -248,7 +252,7 @@ vehicles, and what makes this approach unique."""
 
     result = _call_llm(prompt, max_tokens=130)
     return result if result else _template_explanation(
-        class_dist, path_result, risk_zones, model_miou)
+        class_dist, path_result, risk_zones, model_miou, graph_store)
 
 
 def generate_failure_analysis(

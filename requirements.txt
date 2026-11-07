@@ -23,7 +23,11 @@ segmentation-models-pytorch==0.3.3
 # --- Albumentations (pin to avoid breaking API changes) ---
 albumentations==1.3.1
 
-# --- TigerGraph (optional — pipeline falls back gracefully if unavailable) ---
+# --- Graph stores ---
+# Kuzu embedded (free, default) + TigerGraph cloud driver (needs credits).
+# NOTE: kuzu has no macOS wheel for Python 3.14 — local 3.14 dev falls back
+# to GRAPH_BACKEND=tigergraph (graceful local mode without credits).
+kuzu==0.11.3
 pyTigerGraph==1.8.0
 
 # --- Diagnostics (lightweight, helps debug OOM on Railway) ---
@@ -42,5 +46,7 @@ anthropic>=0.40
 # (Railway's lean deploy uses requirements-railway.txt instead.)
 huggingface_hub>=0.24
 matplotlib>=3.8
-gradio>=5.0
-gradio_client>=1.0
+# Pinned 5.x line (matches README sdk_version): Space builder installs
+# gradio[oauth]==sdk_version, and 5.0.0's fastapi ceiling broke the build.
+gradio==5.50.0
+gradio-client==1.14.0

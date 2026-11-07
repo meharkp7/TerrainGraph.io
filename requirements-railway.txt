@@ -13,15 +13,16 @@ requests==2.33.0
 python-multipart>=0.0.18
 
 # --- Space inference client (pure HTTP, no torch) ---
-gradio_client>=1.0
+# Pinned to the gradio 5.50.0 companion (see root requirements.txt).
+gradio-client==1.14.0
 
 # --- Image Processing (headless, no Qt) ---
 pillow==12.1.1
 numpy==1.26.4
 opencv-python-headless==4.10.0.84
 
-# --- TigerGraph (optional — pipeline falls back gracefully if unavailable) ---
-pyTigerGraph==1.8.0
+# --- Graph store: Kuzu embedded (free, no server, ~50MB) ---
+kuzu==0.11.3
 
 # --- Diagnostics (lightweight, helps debug OOM on Railway) ---
 psutil==5.9.8
