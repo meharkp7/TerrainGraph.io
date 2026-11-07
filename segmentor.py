@@ -65,7 +65,10 @@ PALETTE = np.array([
 
 def load_model(checkpoint_path: str) -> tuple:
     """Load model from checkpoint. Returns (model, device, cfg)."""
-    ckpt = torch.load(checkpoint_path, map_location="cpu")
+    # mmap=True pages the 550MB file instead of slurping it into RAM;
+    # weights_only=True skips unpickling optimizer state we never use.
+    ckpt = torch.load(checkpoint_path, map_location="cpu",
+                      mmap=True, weights_only=True)
     cfg  = ckpt.get("cfg", {})
     arch = cfg.get("arch", "deeplabv3+").lower()
 
@@ -258,7 +261,8 @@ class Segmentor:
             checkpoint_path = self._find_ckpt()
         self.ckpt_path = checkpoint_path
         self.model, self.device, cfg = load_model(checkpoint_path)
-        ckpt      = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+        ckpt      = torch.load(checkpoint_path, map_location="cpu",
+                               mmap=True, weights_only=True)
         self.miou = float(ckpt.get("miou", 0.0))
         self.img_size = cfg.get("img_size", 512)
 

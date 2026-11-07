@@ -19,7 +19,7 @@ from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 
-from pipeline import run_pipeline, MODEL_MIOU
+from pipeline import run_pipeline, is_model_loaded, MODEL_MIOU
 
 app = FastAPI(
     title="Terrain Intelligence API",
@@ -44,15 +44,18 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 
 @app.get("/")
 def root():
-    return {"status": "ok", "model_miou": MODEL_MIOU}
+    return {"status": "ok", "model_loaded": is_model_loaded(),
+            "model_miou": MODEL_MIOU}
 
 
 @app.get("/health")
 def health():
+    # Must stay light: must NOT trigger the lazy model load.
     return {
-        "status":     "healthy",
-        "model_miou": MODEL_MIOU,
-        "tigergraph": os.getenv("TIGERGRAPH_HOST", "not set"),
+        "status":       "healthy",
+        "model_loaded": is_model_loaded(),
+        "model_miou":   MODEL_MIOU,
+        "tigergraph":   os.getenv("TIGERGRAPH_HOST", "not set"),
     }
 
 

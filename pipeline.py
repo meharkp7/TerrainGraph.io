@@ -9,6 +9,7 @@ import os
 import time
 import json
 import uuid
+import threading
 import numpy as np
 from pathlib import Path
 from dotenv import load_dotenv
@@ -29,7 +30,10 @@ from explainer import (
 )
 
 # ─────────────────────────────────────────────
-# LOAD MODEL + CONNECT ONCE AT STARTUP
+# MODEL + CONNECTION
+# The model (550MB) loads LAZILY on first run_pipeline() call — never at
+# import. This keeps container boot light so small Railway instances pass
+# their healthcheck instead of getting OOM-killed during startup.
 # ─────────────────────────────────────────────
 
 CHECKPOINT = os.getenv(
@@ -38,12 +42,29 @@ CHECKPOINT = os.getenv(
 )
 MODEL_MIOU = 0.6676
 
-print("Loading model...")
-model, device, cfg = load_model(CHECKPOINT)
+_model = None
+_device = None
+_cfg = None
+_model_lock = threading.Lock()
 
 print("Connecting to TigerGraph...")
 conn = get_connection()
-print("✅ Pipeline ready\n")
+print("✅ Pipeline module ready (model loads on first request)\n")
+
+
+def get_model():
+    """Load the segmentation model once, thread-safely. First call is slow."""
+    global _model, _device, _cfg
+    if _model is None:
+        with _model_lock:
+            if _model is None:
+                print("Loading model...", flush=True)
+                _model, _device, _cfg = load_model(CHECKPOINT)
+    return _model, _device, _cfg
+
+
+def is_model_loaded() -> bool:
+    return _model is not None
 
 
 # ─────────────────────────────────────────────
@@ -76,6 +97,7 @@ def run_pipeline(image_path: str,
     # ── Step 1: Segmentation ──────────────────────────────────
     print("\n[1/4] Segmentation...")
     t0 = time.time()
+    model, device, _ = get_model()
     seg = predict(model, device, image_path, use_tta=use_tta)
     print(f"      Done in {time.time()-t0:.1f}s")
     print("      Class distribution:")

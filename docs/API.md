@@ -14,10 +14,14 @@ curl -s $API/health
 ```json
 {
   "status": "healthy",
+  "model_loaded": false,
   "model_miou": 0.6676,
   "tigergraph": "https://<host> or \"not set\""
 }
 ```
+
+`model_loaded` is `false` until the first `/analyze` call — the 550MB
+weights load lazily so container boot stays light (see deployment notes).
 
 ## `POST /analyze`
 

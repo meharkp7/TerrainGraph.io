@@ -48,6 +48,15 @@ pull the latest `main` if your build still references the old name.
 literally. The repo wraps the command in `sh -c '... ${PORT:-8000}'`
 (both in `railway.toml` and the `Dockerfile` CMD) so the variable expands.
 
+**Container prints `Killed` with no traceback?** That's the OOM killer —
+the 550MB model plus torch exceeds the service's RAM. Mitigations already
+in the repo: lazy model load (boot stays light, `/health` passes),
+memory-mapped weight loading, capped BLAS threads, single worker. If it
+still dies, check Metrics → Memory to confirm the spike, then raise the
+service memory limit (Settings → Resources) — a ResNet-101 fp32 model
+realistically wants ≥2GB. The first `/analyze` after a deploy takes
+~30–60s (one-time model load); that is normal.
+
 ## Temporary tunnels (when Railway isn't up)
 
 **ngrok, permanent-ish (free):** reserve one free static domain at

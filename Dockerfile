@@ -21,6 +21,12 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
+# Lean runtime: unbuffered logs + capped BLAS threads (each thread arena
+# costs RAM; 2 is plenty for single-request inference on shared vCPU).
+ENV PYTHONUNBUFFERED=1 \
+    OMP_NUM_THREADS=2 \
+    MKL_NUM_THREADS=2
+
 # App code
 COPY . .
 
