@@ -103,7 +103,10 @@ def get_client():
                 "HF_SPACE_ID is not set — point it at the inference Space "
                 "(e.g. your-user/terrain-space). See docs/DEPLOYMENT.md.")
         from gradio_client import Client  # lazy: keeps module lean-safe
-        _client = Client(space, hf_token=os.getenv("HF_TOKEN") or None)
+        # Hard timeout: a dead/sleeping Space must fail fast into OUR 502
+        # (with CORS headers + retry message), never hang into an edge 502.
+        _client = Client(space, hf_token=os.getenv("HF_TOKEN") or None,
+                         httpx_kwargs={"timeout": 300.0})
     return _client
 
 

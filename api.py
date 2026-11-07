@@ -67,8 +67,12 @@ def health():
 
 
 @app.post("/analyze")
-async def analyze(file: UploadFile = File(...)):
-    """Accept image upload → run full pipeline → return JSON results."""
+def analyze(file: UploadFile = File(...)):
+    """
+    Accept image upload → run full pipeline → return JSON results.
+    Sync endpoint (runs in FastAPI's threadpool): a long or stuck analysis
+    must never block the event loop and wedge /health for everyone else.
+    """
     if not (file.content_type or "").startswith("image/"):
         raise HTTPException(400, "File must be an image")
 
@@ -76,7 +80,7 @@ async def analyze(file: UploadFile = File(...)):
     if suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp", ".bmp"}:
         suffix = ".png"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        tmp.write(await file.read())
+        tmp.write(file.file.read())  # sync read of the spooled upload
         tmp_path = tmp.name
 
     try:
