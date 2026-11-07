@@ -1,0 +1,30 @@
+# requirements-railway.txt — LEAN backend for Railway's 512MB tier.
+# No torch / smp / albumentations: segmentation runs on the HuggingFace
+# Space (see segmentor_space.py), so this image stays ~150MB RAM.
+# The Dockerfile installs THIS file. Local full-pipeline dev and the Space
+# use requirements.txt instead (torch stack included).
+
+# --- Core Backend ---
+fastapi==0.129.0
+uvicorn==0.40.0
+python-dotenv==1.2.2
+requests==2.33.0
+
+# --- Space inference client (pure HTTP, no torch) ---
+gradio_client>=1.0
+
+# --- Image Processing (headless, no Qt) ---
+pillow==12.1.1
+numpy==1.26.4
+opencv-python-headless==4.10.0.84
+
+# --- TigerGraph (optional — pipeline falls back gracefully if unavailable) ---
+pyTigerGraph==1.8.0
+
+# --- Diagnostics (lightweight, helps debug OOM on Railway) ---
+psutil==5.9.8
+
+# --- LLM briefing providers (explainer.py tries Groq → Gemini → Claude) ---
+groq>=1.0
+google-generativeai>=0.8
+anthropic>=0.40

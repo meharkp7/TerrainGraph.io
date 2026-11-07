@@ -14,29 +14,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Python deps
+# Python deps — the LEAN set (no torch): segmentation runs on the
+# HuggingFace Space, so this image fits Railway's 512MB tier.
 # Upgrade pip first: base-image pip rejects the typing_extensions wheel
 # (metadata Name mismatch) and falls back to an sdist that needs flit_core.
-COPY requirements.txt .
+COPY requirements-railway.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements-railway.txt
 
-# Lean runtime: unbuffered logs + capped BLAS threads (each thread arena
-# costs RAM; 2 is plenty for single-request inference on shared vCPU).
+# Lean runtime: unbuffered logs + inference via the HF Space.
+# (HF_SPACE_ID must be set in Railway env vars — see docs/DEPLOYMENT.md.)
 ENV PYTHONUNBUFFERED=1 \
-    OMP_NUM_THREADS=2 \
-    MKL_NUM_THREADS=2
+    INFERENCE_BACKEND=space
 
-# App code
+# App code (no model download: weights live on the Space, not here)
 COPY . .
-
-# Download model at build time from HuggingFace.
-# ARG alone is not visible to `python download_model.py` (it reads the
-# environment), so promote it to ENV with the public repo as default.
-ARG HF_MODEL_REPO=mk1647/terrain-intelligence
-ENV HF_MODEL_REPO=${HF_MODEL_REPO} \
-    MODEL_CHECKPOINT=/app/runs/deployed/best.pth
-RUN python download_model.py
 
 # Railway assigns PORT=8080 and routes public traffic using the exposed port,
 # so EXPOSE must match — 8000 here caused 502 connection-refused while the

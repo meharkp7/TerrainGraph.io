@@ -35,6 +35,11 @@ CHECKPOINT = os.getenv(
 )
 MODEL_MIOU = 0.6676
 
+# Segmentation backend: "local" runs torch in-process (needs ~1GB+ RAM),
+# "space" calls the HF Space /segment endpoint (lean, fits 512MB).
+# Railway free tier must use "space" — see docs/DEPLOYMENT.md.
+INFERENCE_BACKEND = os.getenv("INFERENCE_BACKEND", "local").strip().lower()
+
 _model = None
 _device = None
 _cfg = None
@@ -98,7 +103,6 @@ def run_pipeline(image_path: str,
     print(f"Image ID : {image_id}")
     print(f"{'='*60}")
 
-    from segmentor import predict as seg_predict
     from terrain_graph import (
         upload_terrain,
         get_risk_zones,
@@ -108,10 +112,15 @@ def run_pipeline(image_path: str,
     conn = get_conn()
 
     # ── Step 1: Segmentation ──────────────────────────────────
-    print("\n[1/4] Segmentation...")
+    print(f"\n[1/4] Segmentation (backend: {INFERENCE_BACKEND})...")
     t0 = time.time()
-    model, device, _ = get_model()
-    seg = seg_predict(model, device, image_path, use_tta=use_tta)
+    if INFERENCE_BACKEND == "space":
+        from segmentor_space import predict_via_space
+        seg = predict_via_space(image_path)
+    else:
+        from segmentor import predict as seg_predict
+        model, device, _ = get_model()
+        seg = seg_predict(model, device, image_path, use_tta=use_tta)
     print(f"      Done in {time.time()-t0:.1f}s")
     print("      Class distribution:")
     for name, pct in seg["class_dist"].items():

@@ -36,7 +36,9 @@ anthropic>=0.40
 
 # --- HuggingFace (model download + Space demo) ---
 # Needed by download_model.py, pipeline_hf.py and app.py (Gradio demo).
-# Same file serves Railway (FastAPI) and HF Spaces (Gradio) — keep in sync.
+# Same file serves local full-pipeline dev and HF Spaces — keep in sync.
+# (Railway's lean deploy uses requirements-railway.txt instead.)
 huggingface_hub>=0.24
 matplotlib>=3.8
 gradio>=5.0
+gradio_client>=1.0

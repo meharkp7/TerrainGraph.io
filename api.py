@@ -19,7 +19,8 @@ from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 
-from pipeline import run_pipeline, is_model_loaded, MODEL_MIOU
+from pipeline import run_pipeline, is_model_loaded, INFERENCE_BACKEND, MODEL_MIOU
+from segmentor_space import SpaceInferenceError
 
 app = FastAPI(
     title="Terrain Intelligence API",
@@ -51,12 +52,16 @@ def root():
 @app.get("/health")
 def health():
     # Must stay light: must NOT trigger the lazy model load.
-    return {
-        "status":       "healthy",
-        "model_loaded": is_model_loaded(),
-        "model_miou":   MODEL_MIOU,
-        "tigergraph":   os.getenv("TIGERGRAPH_HOST", "not set"),
+    resp = {
+        "status":            "healthy",
+        "model_loaded":      is_model_loaded(),
+        "model_miou":        MODEL_MIOU,
+        "inference_backend": INFERENCE_BACKEND,
+        "tigergraph":        os.getenv("TIGERGRAPH_HOST", "not set"),
     }
+    if INFERENCE_BACKEND == "space":
+        resp["space_id"] = os.getenv("HF_SPACE_ID", "not set")
+    return resp
 
 
 @app.post("/analyze")
@@ -74,6 +79,8 @@ async def analyze(file: UploadFile = File(...)):
 
     try:
         result = run_pipeline(tmp_path, use_tta=False, save_outputs=True)
+    except SpaceInferenceError as e:
+        raise HTTPException(502, f"Inference Space unavailable: {e}")
     except Exception as e:
         raise HTTPException(500, f"Pipeline failed: {e}")
     finally:
