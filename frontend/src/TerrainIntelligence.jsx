@@ -2,10 +2,10 @@
 // React + TailwindCSS + Framer Motion
 // Cinematic sci-fi monitoring dashboard with live visualizations
 
-import { useState, useRef, useEffect, useCallback } from "react";
-import { motion, AnimatePresence, useSpring, useTransform } from "framer-motion";
-
-const API_BASE = import.meta.env.VITE_API_BASE || "";
+import { useState, useRef, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Chart } from "chart.js/auto";
+import { API_BASE, analyzeImage, checkHealth, imageUrl } from "./api.js";
 
 const CLASS_META = {
   Dense_Vegetation: { color: "#22c55e", dim: "#14532d", label: "Dense Veg", trav: 0.45, risk: "MED" },
@@ -286,9 +286,6 @@ function ClassDonutChart({ data }) {
 
     if (chartRef.current) chartRef.current.destroy();
 
-    const Chart = window.Chart;
-    if (!Chart) return;
-
     chartRef.current = new Chart(canvasRef.current, {
       type: "doughnut",
       data: {
@@ -360,8 +357,6 @@ function TravBarChart({ data }) {
     const colors  = entries.map(([k]) => CLASS_META[k]?.color || "#64748b");
 
     if (chartRef.current) chartRef.current.destroy();
-    const Chart = window.Chart;
-    if (!Chart) return;
 
     chartRef.current = new Chart(canvasRef.current, {
       type: "bar",
@@ -409,70 +404,131 @@ function TravBarChart({ data }) {
 }
 
 // ── Main App ───────────────────────────────────────────────────
+const MAX_FILE_MB = 15;
+
 export default function TerrainIntelligence() {
   const [status,    setStatus]    = useState("idle");
   const [result,    setResult]    = useState(null);
   const [preview,   setPreview]   = useState(null);
   const [activeTab, setActiveTab] = useState("segmented");
+  const [briefTab,  setBriefTab]  = useState("briefing");
   const [pipeStep,  setPipeStep]  = useState(null);
   const [logs,      setLogs]      = useState([]);
+  const [backend,   setBackend]   = useState({ state: "checking" });
   const fileRef  = useRef();
   const fileObj  = useRef(null);
+  const timers   = useRef([]);
 
   function addLog(msg, type = "info") {
     const t = new Date().toLocaleTimeString("en-US", { hour12: false });
-    setLogs(l => [...l.slice(-20), { t, msg, type }]);
+    setLogs(l => [...l.slice(-30), { t, msg, type }]);
   }
+
+  // Backend health check on mount — drives the header status pill.
+  useEffect(() => {
+    const ctrl = new AbortController();
+    addLog(API_BASE ? `Backend: ${API_BASE}` : "Backend: same origin");
+    checkHealth(ctrl.signal)
+      .then(h => {
+        setBackend({ state: "online", miou: h.model_miou });
+        addLog(`Backend online · model mIoU ${(h.model_miou * 100).toFixed(1)}%`, "success");
+      })
+      .catch(err => {
+        if (ctrl.signal.aborted) return;
+        setBackend({ state: "offline", error: err.message });
+        addLog(`Backend unreachable: ${err.message}`, "error");
+      });
+    return () => ctrl.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleFile(file) {
     if (!file?.type.startsWith("image/")) return;
+    if (file.size > MAX_FILE_MB * 1024 * 1024) {
+      addLog(`File too large (${(file.size / 1024 / 1024).toFixed(1)} MB > ${MAX_FILE_MB} MB)`, "error");
+      return;
+    }
     fileObj.current = file;
-    setPreview(URL.createObjectURL(file));
+    setPreview(prev => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
     setResult(null);
     setStatus("idle");
     setLogs([]);
     addLog(`Loaded ${file.name} · ${(file.size / 1024).toFixed(1)} KB`);
   }
 
+  // Paste-to-upload anywhere on the page.
+  useEffect(() => {
+    const onPaste = e => {
+      const item = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith("image/"));
+      if (item) handleFile(item.getAsFile());
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function runAnalysis() {
-    if (!fileObj.current) return;
+    if (!fileObj.current || status === "loading") return;
+    timers.current.forEach(clearTimeout);
+    timers.current = [];
     setStatus("loading");
     setResult(null);
+    setBriefTab("briefing");
     setPipeStep("seg");
 
+    // Simulated stage timeline (the backend runs all stages in one call).
     const timeline = [
-      { step: "seg",   msg: "DeepLabV3+ inference...",     delay: 0 },
-      { step: "graph", msg: "Building terrain graph...",   delay: 700 },
-      { step: "path",  msg: "Dijkstra pathfinding...",     delay: 1400 },
-      { step: "mem",   msg: "Querying TigerGraph memory...",delay: 2100 },
-      { step: "llm",   msg: "Generating LLM briefing...",  delay: 2800 },
+      { step: "seg",   msg: "DeepLabV3+ inference...",      delay: 0 },
+      { step: "graph", msg: "Building terrain graph...",    delay: 700 },
+      { step: "path",  msg: "Dijkstra pathfinding...",      delay: 1400 },
+      { step: "mem",   msg: "Querying TigerGraph memory...", delay: 2100 },
+      { step: "llm",   msg: "Generating LLM briefing...",   delay: 2800 },
     ];
     timeline.forEach(({ step, msg, delay }) => {
-      setTimeout(() => { setPipeStep(step); addLog(msg); }, delay);
+      timers.current.push(setTimeout(() => { setPipeStep(step); addLog(msg); }, delay));
     });
 
     try {
-      const form = new FormData();
-      form.append("file", fileObj.current);
-      const res  = await fetch(`${API_BASE}/analyze`, { method: "POST", body: form });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const data = await analyzeImage(fileObj.current);
+      timers.current.forEach(clearTimeout);
       setResult(data);
       setStatus("done");
       setPipeStep(null);
+      setBackend(b => (b.state === "online" ? b : { state: "online", miou: data.model_miou }));
       addLog(`Complete · ${data.total_time}s · mIoU ${(data.model_miou * 100).toFixed(1)}%`, "success");
     } catch (err) {
+      timers.current.forEach(clearTimeout);
       setStatus("error");
       setPipeStep(null);
+      if (/failed to fetch|networkerror|load failed/i.test(err.message)) {
+        setBackend(b => (b.state === "offline" ? b : { state: "offline", error: err.message }));
+      }
       addLog(`Error: ${err.message}`, "error");
     }
   }
 
+  function retryBackend() {
+    setBackend({ state: "checking" });
+    addLog("Retrying backend connection...");
+    checkHealth()
+      .then(h => {
+        setBackend({ state: "online", miou: h.model_miou });
+        addLog("Backend online", "success");
+      })
+      .catch(err => {
+        setBackend({ state: "offline", error: err.message });
+        addLog(`Still unreachable: ${err.message}`, "error");
+      });
+  }
+
   const images = result ? {
-    original:    `${API_BASE}/image/${result.image_id}/original`,
-    segmented:   `${API_BASE}/image/${result.image_id}/segmented`,
-    overlay:     `${API_BASE}/image/${result.image_id}/overlay`,
-    path_visual: `${API_BASE}/image/${result.image_id}/path`,
+    original:    imageUrl(result.image_id, "original"),
+    segmented:   imageUrl(result.image_id, "segmented"),
+    overlay:     imageUrl(result.image_id, "overlay"),
+    path_visual: imageUrl(result.image_id, "path"),
   } : {};
 
   const logColors = { info: "#475569", success: "#22c55e", error: "#ef4444", warn: "#f59e0b" };
@@ -524,6 +580,29 @@ export default function TerrainIntelligence() {
           ))}
         </div>
 
+        <button
+          onClick={retryBackend}
+          title={backend.state === "online"
+            ? `Backend online · mIoU ${((backend.miou ?? 0) * 100).toFixed(1)}% · click to re-check`
+            : backend.state === "checking"
+              ? "Checking backend..."
+              : `Backend offline: ${backend.error || "unreachable"} · click to retry`}
+          style={{
+            display: "flex", alignItems: "center", gap: 7,
+            background: "transparent",
+            border: `1px solid ${backend.state === "online" ? "#22c55e44" : backend.state === "checking" ? "#334155" : "#ef444455"}`,
+            borderRadius: 20, padding: "4px 11px", cursor: "pointer",
+            fontSize: 10, fontFamily: "monospace", letterSpacing: "0.08em",
+            color: backend.state === "online" ? "#22c55e" : backend.state === "checking" ? "#64748b" : "#ef4444",
+          }}
+        >
+          <span style={{
+            width: 6, height: 6, borderRadius: "50%",
+            background: backend.state === "online" ? "#22c55e" : backend.state === "checking" ? "#64748b" : "#ef4444",
+          }} />
+          {backend.state === "online" ? "API LIVE" : backend.state === "checking" ? "API ..." : "API DOWN"}
+        </button>
+
         <div style={{
           fontSize: 11, fontFamily: "monospace",
           color: status === "done" ? "#22c55e" : status === "loading" ? "#3b82f6" : status === "error" ? "#ef4444" : "#334155",
@@ -533,8 +612,41 @@ export default function TerrainIntelligence() {
         </div>
       </motion.div>
 
+      {/* ── Offline banner ── */}
+      <AnimatePresence>
+        {backend.state === "offline" && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            style={{
+              background: "#ef444410", borderBottom: "1px solid #ef444433",
+              padding: "9px 24px", fontSize: 11, fontFamily: "monospace",
+              color: "#fca5a5", position: "relative", zIndex: 10,
+              display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap",
+            }}
+          >
+            <span>
+              Backend unreachable{API_BASE ? ` at ${API_BASE}` : " (same origin)"} — start it with
+              {" "}<code style={{ color: "#fecaca" }}>uvicorn api:app --port 8000</code> or set
+              {" "}<code style={{ color: "#fecaca" }}>VITE_API_BASE</code>, then
+            </span>
+            <button
+              onClick={retryBackend}
+              style={{
+                background: "transparent", border: "1px solid #ef444466",
+                borderRadius: 4, color: "#fca5a5", padding: "3px 10px",
+                fontSize: 10, fontFamily: "monospace", cursor: "pointer",
+              }}
+            >
+              RETRY
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Main Grid ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "260px 1fr 260px", gap: 12, padding: 16, position: "relative", zIndex: 1 }}>
+      <div className="ti-grid" style={{ display: "grid", gap: 12, padding: 16, position: "relative", zIndex: 1 }}>
 
         {/* ── LEFT ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -552,6 +664,10 @@ export default function TerrainIntelligence() {
               onClick={() => fileRef.current.click()}
               onDrop={e => { e.preventDefault(); handleFile(e.dataTransfer.files[0]); }}
               onDragOver={e => e.preventDefault()}
+              onKeyDown={e => { if (e.key === "Enter" || e.key === " ") fileRef.current.click(); }}
+              role="button"
+              tabIndex={0}
+              aria-label="Upload a terrain image"
               whileHover={{ borderColor: "#22c55e55" }}
               style={{
                 border: "1px dashed #1e293b",
@@ -573,7 +689,7 @@ export default function TerrainIntelligence() {
                   <div style={{ fontSize: 28, color: "#1e293b", marginBottom: 8 }}>⊕</div>
                   <div style={{ fontSize: 11, color: "#1e293b", fontFamily: "monospace" }}>
                     DROP IMAGE<br />
-                    <span style={{ fontSize: 10, color: "#0f172a" }}>or click to browse</span>
+                    <span style={{ fontSize: 10, color: "#334155" }}>click, drop, or paste · max {MAX_FILE_MB} MB</span>
                   </div>
                 </div>
               )}
@@ -622,7 +738,7 @@ export default function TerrainIntelligence() {
                 style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}
               >
                 <GlowCard label="mIoU" value={(result.model_miou * 100).toFixed(1)} unit="%" color="#22c55e" delay={0} />
-                <GlowCard label="Time" value={result.total_time} unit="s" color="#38bdf8" delay={0.1} />
+                <GlowCard label="Time" value={result.total_time} unit="s" color="#38bdf8" delay={0.1} decimals={1} />
                 <GlowCard label="Path hops" value={result.path?.hop_count || 0} unit="" color="#a78bfa" delay={0.2} />
                 <GlowCard label="Risk zones" value={result.risk_zones?.length || 0} unit="" color={result.risk_zones?.length > 0 ? "#f87171" : "#22c55e"} delay={0.3} />
               </motion.div>
@@ -820,7 +936,8 @@ export default function TerrainIntelligence() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
-                style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
+                className="ti-charts"
+                style={{ display: "grid", gap: 12 }}
               >
                 <div style={{ background: "#060b14", border: "1px solid #1e293b", borderRadius: 8, padding: 14 }}>
                   <div style={{ fontSize: 9, color: "#1e293b", letterSpacing: "0.12em", marginBottom: 10, fontFamily: "monospace" }}>CLASS DISTRIBUTION</div>
@@ -866,18 +983,37 @@ export default function TerrainIntelligence() {
             transition={{ duration: 0.5, delay: 0.1 }}
             style={{ background: "#060b14", border: "1px solid #1e293b", borderRadius: 8, padding: 16 }}
           >
-            <div style={{ fontSize: 9, color: "#1e293b", letterSpacing: "0.12em", marginBottom: 12, fontFamily: "monospace" }}>
-              AI NAVIGATION BRIEFING
+            <div style={{ display: "flex", gap: 14, marginBottom: 12 }}>
+              {[
+                { key: "briefing", label: "AI BRIEFING" },
+                { key: "why", label: "WHY IT WORKS" },
+              ].map(t => (
+                <button
+                  key={t.key}
+                  onClick={() => setBriefTab(t.key)}
+                  style={{
+                    background: "transparent", border: "none",
+                    borderBottom: briefTab === t.key ? "2px solid #22c55e" : "2px solid transparent",
+                    color: briefTab === t.key ? "#22c55e" : "#334155",
+                    fontSize: 9, letterSpacing: "0.12em", fontFamily: "monospace",
+                    padding: "2px 0 5px", cursor: "pointer",
+                  }}
+                >
+                  {t.label}
+                </button>
+              ))}
             </div>
             <AnimatePresence mode="wait">
               {result?.briefing ? (
                 <motion.div
-                  key="briefing"
+                  key={briefTab}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
                   style={{ fontSize: 11, lineHeight: 1.9, color: "#94a3b8", fontFamily: "monospace" }}
                 >
-                  {result.briefing}
+                  {briefTab === "briefing" ? result.briefing : (result.explanation || result.briefing)}
                 </motion.div>
               ) : (
                 <motion.div
@@ -952,7 +1088,7 @@ export default function TerrainIntelligence() {
                   <div>
                     <div style={{ fontSize: 10, color: "#334155", marginBottom: 3, fontFamily: "monospace" }}>COST</div>
                     <div style={{ fontSize: 28, fontWeight: 700, color: "#a78bfa", fontFamily: "monospace", lineHeight: 1 }}>
-                      <AnimatedNumber value={result.path.total_cost || 0} decimals={1} />
+                      <AnimatedNumber value={result.path.total_cost || 0} decimals={2} />
                     </div>
                   </div>
                 </div>
@@ -1015,9 +1151,6 @@ export default function TerrainIntelligence() {
           </motion.div>
         </div>
       </div>
-
-      {/* Chart.js CDN */}
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js" />
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap');
