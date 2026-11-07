@@ -92,4 +92,6 @@ with gr.Blocks(theme=gr.themes.Soft(), title="TerrainGraph AI") as demo:
         )
 
 if __name__ == "__main__":
-    demo.launch()
+    # show_error=True surfaces tracebacks to API clients (Railway logs them);
+    # disable only if endpoint errors ever leak sensitive paths.
+    demo.launch(show_error=True)
