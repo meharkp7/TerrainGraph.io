@@ -716,7 +716,7 @@ if __name__ == "__main__":
     print("\n[Test] Python Dijkstra on 4×4 grid...")
     dummy_patches = [
         {"patch_id": make_patch_id("test", r, c),
-         "image_id": "test", "row": r, "col": c,
+         "image_id": "test", "rowV": r, "colV": c,
          "dominant_class": 4,  # Landscape
          "class_name": "Landscape",
          "traversability": 0.95,
@@ -727,7 +727,7 @@ if __name__ == "__main__":
     ]
     # Add a rock obstacle at (2,2)
     for p in dummy_patches:
-        if p["row"] == 2 and p["col"] == 2:
+        if p["rowV"] == 2 and p["colV"] == 2:
             p["traversability"] = 0.15
             p["dominant_class"] = 3
             p["class_name"]     = "Rocks"

@@ -8,6 +8,7 @@ Run: uvicorn api:app --reload --port 8000
 """
 
 import os
+import re
 import tempfile
 from pathlib import Path
 from dotenv import load_dotenv
@@ -20,7 +21,15 @@ from fastapi.responses import JSONResponse, FileResponse
 
 from pipeline import run_pipeline, MODEL_MIOU
 
-app = FastAPI(title="Terrain Intelligence API")
+app = FastAPI(
+    title="Terrain Intelligence API",
+    description="Terrain segmentation + TigerGraph pathfinding + LLM briefing. "
+                "Frontend: POST /analyze, GET /image/{image_id}/{type}, GET /health.",
+    version="1.0.0",
+)
+
+# image_ids are generated as img_<8 hex> — strict allowlist blocks path traversal
+_IMAGE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 
 app.add_middleware(
     CORSMiddleware,
@@ -50,10 +59,12 @@ def health():
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...)):
     """Accept image upload → run full pipeline → return JSON results."""
-    if not file.content_type.startswith("image/"):
+    if not (file.content_type or "").startswith("image/"):
         raise HTTPException(400, "File must be an image")
 
     suffix = Path(file.filename or "upload.png").suffix or ".png"
+    if suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp", ".bmp"}:
+        suffix = ".png"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         tmp.write(await file.read())
         tmp_path = tmp.name
@@ -91,6 +102,8 @@ def get_image(image_id: str, img_type: str):
     valid = {"original", "segmented", "overlay", "path"}
     if img_type not in valid:
         raise HTTPException(400, f"Invalid image type '{img_type}'. Use: {valid}")
+    if not _IMAGE_ID_RE.match(image_id):
+        raise HTTPException(400, f"Invalid image_id '{image_id}'")
 
     base_dir = OUTPUT_DIR / image_id
     if not base_dir.exists():
@@ -127,6 +140,8 @@ def get_image(image_id: str, img_type: str):
 @app.get("/debug/{image_id}")
 def debug_outputs(image_id: str):
     """List all files saved for an image_id."""
+    if not _IMAGE_ID_RE.match(image_id):
+        raise HTTPException(400, f"Invalid image_id '{image_id}'")
     d = OUTPUT_DIR / image_id
     if not d.exists():
         raise HTTPException(404, f"No output dir for {image_id}")
