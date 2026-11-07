@@ -157,4 +157,7 @@ def run_pipeline(image) -> dict:
         "class_dist": seg["class_dist"],
         "avg_trav": round(avg_trav, 4),
         "path_hops": len(path),
+        # Raw outputs for the /segment machine endpoint (demo ignores these)
+        "mask": seg["mask"],
+        "confidence": seg["confidence"],
     }
