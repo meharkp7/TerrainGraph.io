@@ -24,9 +24,6 @@ opencv-python-headless==4.10.0.84
 # --- Graph store: Kuzu embedded (free, no server, ~50MB) ---
 kuzu==0.11.3
 
-# --- Diagnostics (lightweight, helps debug OOM on Railway) ---
-psutil==5.9.8
-
 # --- LLM briefing providers (explainer.py tries Groq → Gemini → Claude) ---
 groq>=1.0
 google-generativeai>=0.8

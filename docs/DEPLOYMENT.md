@@ -84,7 +84,13 @@ installs `gradio[oauth]==<sdk_version>` from the README frontmatter on
 top of root `requirements.txt` — the two must resolve together (an old
 `sdk_version: 5.0.0` capped fastapi below our pin and broke the build).
 Keep `sdk_version` and the `gradio==` pin on the same 5.x line; the full
-build log in the Space UI names the conflicting package.
+build log in the Space UI names the conflicting package. Two hard rules
+for root `requirements.txt`: every pin needs a cp313 manylinux wheel
+(the builder is Python 3.13 with no compiler — sdists fail), and versions
+must satisfy gradio's ceilings (e.g. `pillow<12`). When in doubt, mirror
+the stack dry-run: `pip install --dry-run -r requirements.txt`
+minus the torch lines, plus the builder's
+`gradio[oauth,mcp]==<sdk_version> uvicorn websockets spaces`.
 
 ## Temporary tunnels (when Railway isn't up)
 

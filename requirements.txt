@@ -9,7 +9,8 @@ python-multipart>=0.0.18
 # --- Image Processing ---
 # CRITICAL: use headless variant — opencv-python pulls Qt/GUI libs (~200MB RAM hit on import)
 # Versions mirror the verified local stack; all need cp313 wheels (HF Spaces run Python 3.13).
-pillow==12.1.1
+# gradio 5.50 caps pillow<12 — 11.3.0 is the newest compatible line.
+pillow==11.3.0
 numpy==2.4.3
 opencv-python-headless==4.10.0.84
 
@@ -32,9 +33,6 @@ albumentations==2.0.8
 # to GRAPH_BACKEND=tigergraph (graceful local mode without credits).
 kuzu==0.11.3
 pyTigerGraph==1.8.0
-
-# --- Diagnostics (lightweight, helps debug OOM on Railway) ---
-psutil==5.9.8
 
 # --- LLM briefing providers (explainer.py tries Groq → Gemini → Claude) ---
 # All optional at runtime (template fallback), but install them so deployed
