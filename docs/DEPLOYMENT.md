@@ -70,6 +70,14 @@ than the app listens on. The app binds Railway's `$PORT` (8080); keep the
 `Dockerfile`'s `EXPOSE` on the same port, and check the domain's target
 port under service Settings → Networking.
 
+**`/analyze` fails with `'TigerGraphConnection' object has no attribute
+'restppPort'`?** The deprecated `apiToken=` constructor parameter crashes
+on some pyTigerGraph versions. The repo sets the token + auth header after
+construction instead, and `get_conn()` degrades to local-only mode (path +
+risk zones still computed) whenever the connection can't be built — the
+pipeline never 500s on TigerGraph issues. Covered by
+`tests/test_tg_graceful.py`.
+
 ## Temporary tunnels (when Railway isn't up)
 
 **ngrok, permanent-ish (free):** reserve one free static domain at

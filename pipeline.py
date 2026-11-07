@@ -63,12 +63,24 @@ def get_model():
 
 
 def get_conn():
-    """Create the TigerGraph connection object once (cheap, no I/O)."""
+    """
+    Create the TigerGraph connection object once (cheap, no I/O).
+    Returns None when the connection can't be built (bad creds, version
+    quirk, network) — every downstream use already catches failures, so
+    the pipeline degrades to local path/zones instead of crashing.
+    Distinguishes "not tried yet" (_conn is None + flag) from failure.
+    """
     global _conn
-    if _conn is None:
-        from terrain_graph import get_connection
-        print("Connecting to TigerGraph...", flush=True)
-        _conn = get_connection()
+    if _conn is None and not getattr(get_conn, "_tried", False):
+        get_conn._tried = True
+        try:
+            from terrain_graph import get_connection
+            print("Connecting to TigerGraph...", flush=True)
+            _conn = get_connection()
+        except Exception as e:
+            print(f"⚠️  TigerGraph connection failed ({e}) — "
+                  f"continuing with local results only", flush=True)
+            _conn = None
     return _conn
 
 

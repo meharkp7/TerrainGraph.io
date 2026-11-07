@@ -216,11 +216,18 @@ INSTALL QUERY getRiskZones, findSimilarTerrains,
 # ─────────────────────────────────────────────
 
 def get_connection() -> tg.TigerGraphConnection:
+    # NOTE: do NOT pass apiToken= to the constructor — that parameter is
+    # deprecated and its code path crashes on some pyTigerGraph versions
+    # (AttributeError: 'TigerGraphConnection' object has no attribute
+    # 'restppPort'). Setting the attributes afterwards produces identical
+    # auth state (Bearer header) on every version.
     conn = tg.TigerGraphConnection(
         host=HOST,
         graphname=GRAPH_NAME,
-        apiToken=API_TOKEN,
     )
+    if API_TOKEN:
+        conn.apiToken = API_TOKEN
+        conn.authHeader = {"Authorization": "Bearer " + API_TOKEN}
     print(f"Connected to TigerGraph: {GRAPH_NAME}")
     return conn
 
@@ -567,8 +574,12 @@ def upload_terrain(conn,
         print(f"     ✅ Terrain graph complete!")
 
     except Exception as e:
-        print(f"     ⚠️  TigerGraph upload error: {e}")
-        print(f"     (Path result still valid from Python Dijkstra)")
+        if conn is None:
+            print("     ⚠️  No TigerGraph connection — upload skipped "
+                  "(local path + risk zones still valid)")
+        else:
+            print(f"     ⚠️  TigerGraph upload error: {e}")
+            print(f"     (Path result still valid from Python Dijkstra)")
 
     return {
         "image_id":   image_id,
@@ -620,6 +631,8 @@ def find_safe_path(conn,
 
 
 def get_risk_zones(conn, image_id: str) -> list:
+    if conn is None:
+        return []
     try:
         result = conn.runInstalledQuery(
             "getRiskZones",
@@ -641,6 +654,8 @@ def find_similar_terrains(conn,
                           veg_pct: float,
                           brightness: float,
                           top_k: int = 5) -> list:
+    if conn is None:
+        return []
     try:
         result = conn.runInstalledQuery(
             "findSimilarTerrains",
