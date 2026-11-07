@@ -19,7 +19,9 @@ import numpy as np
 from pathlib import Path
 from dotenv import load_dotenv
 
-import pyTigerGraph as tg
+# NOTE: pyTigerGraph is imported lazily inside get_connection() (not here)
+# so the pure-local helpers in this module stay usable on hosts without the
+# driver installed (e.g. the lean Railway image, which uses Kuzu instead).
 
 load_dotenv()
 
@@ -215,12 +217,13 @@ INSTALL QUERY getRiskZones, findSimilarTerrains,
 # CONNECTION
 # ─────────────────────────────────────────────
 
-def get_connection() -> tg.TigerGraphConnection:
+def get_connection():
     # NOTE: do NOT pass apiToken= to the constructor — that parameter is
     # deprecated and its code path crashes on some pyTigerGraph versions
     # (AttributeError: 'TigerGraphConnection' object has no attribute
     # 'restppPort'). Setting the attributes afterwards produces identical
     # auth state (Bearer header) on every version.
+    import pyTigerGraph as tg  # lazy: keeps module importable without it
     conn = tg.TigerGraphConnection(
         host=HOST,
         graphname=GRAPH_NAME,
@@ -443,6 +446,67 @@ def _fallback_path(image_id, sr, sc, er, ec, rows):
 
 
 # ─────────────────────────────────────────────
+# SHARED LOCAL BUILD (used by both DB backends)
+# ─────────────────────────────────────────────
+
+def build_terrain_local(image_id: str,
+                        image_path: str,
+                        seg_result: dict,
+                        model_miou: float = 0.0,
+                        patch_size: int = PATCH_SIZE) -> dict:
+    """
+    Everything database-independent: patches, edges, risk zones,
+    Dijkstra path. Both upload_terrain() flavors (TigerGraph, Kuzu)
+    call this first, then persist to their own store.
+    """
+    mask       = seg_result["mask"]
+    confidence = seg_result["confidence"]
+    class_dist = seg_result["class_dist"]
+    trav_map   = seg_result["trav_map"]
+    img_np     = seg_result["orig_np"]
+
+    H, W  = mask.shape
+    rows  = H // patch_size
+    cols  = W // patch_size
+
+    print(f"     Grid: {rows}×{cols} = {rows * cols} patches")
+
+    patches = mask_to_patches(mask, confidence, image_id, patch_size)
+    edges   = patches_to_edges(patches, rows, cols)
+    zones   = extract_risk_zones(patches, image_id)
+    bright  = float(img_np.mean() / 255.0)
+
+    start_row = rows - 1
+    start_col = cols // 2
+    end_row   = 0
+    end_col   = cols // 2
+
+    path_result = dijkstra_python(
+        patches, edges, image_id,
+        start_row, start_col,
+        end_row,   end_col,
+    )
+    print(f"     Path: {path_result['hop_count']} hops, "
+          f"cost={path_result['total_cost']:.4f}")
+
+    return {
+        "image_id":   image_id,
+        "image_path": str(image_path),
+        "model_miou": model_miou,
+        "patch_list": patches,
+        "edge_list":  edges,
+        "zone_list":  zones,
+        "path":       path_result,
+        "class_dist": class_dist,
+        "brightness": bright,
+        "avg_trav":   float(trav_map.mean()),
+        "trav_map":   trav_map,
+        "rows":       rows,
+        "cols":       cols,
+    }
+
+
+# ─────────────────────────────────────────────
 # UPLOAD TO TIGERGRAPH
 # ─────────────────────────────────────────────
 
@@ -457,39 +521,16 @@ def upload_terrain(conn,
     Also runs Python Dijkstra and stores the path.
     Returns summary dict with patches, edges, risk_zones, path.
     """
-    mask       = seg_result["mask"]
-    confidence = seg_result["confidence"]
-    class_dist = seg_result["class_dist"]
-    trav_map   = seg_result["trav_map"]
-    img_np     = seg_result["orig_np"]
-
-    H, W  = mask.shape
-    rows  = H // patch_size
-    cols  = W // patch_size
-
     print(f"\n[TG] Uploading terrain graph: {image_id}")
-    print(f"     Grid: {rows}×{cols} = {rows*cols} patches")
-
-    # ── Build local data structures ──────────────
-    patches = mask_to_patches(mask, confidence, image_id, patch_size)
-    edges   = patches_to_edges(patches, rows, cols)
-    zones   = extract_risk_zones(patches, image_id)
-    bright  = float(img_np.mean() / 255.0)
-
-    # ── Run Python Dijkstra BEFORE uploading ────
-    # (doesn't depend on TG — always works)
-    start_row = rows - 1
-    start_col = cols // 2
-    end_row   = 0
-    end_col   = cols // 2
-
-    path_result = dijkstra_python(
-        patches, edges, image_id,
-        start_row, start_col,
-        end_row,   end_col,
-    )
-    print(f"     Path: {path_result['hop_count']} hops, "
-          f"cost={path_result['total_cost']:.4f}")
+    local = build_terrain_local(
+        image_id, image_path, seg_result, model_miou, patch_size)
+    patches     = local["patch_list"]
+    edges       = local["edge_list"]
+    zones       = local["zone_list"]
+    path_result = local["path"]
+    class_dist  = local["class_dist"]
+    trav_map    = local["trav_map"]
+    bright      = local["brightness"]
 
     # ── Upload to TigerGraph ─────────────────────
     try:
