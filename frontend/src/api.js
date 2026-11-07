@@ -14,8 +14,13 @@
 
 export const API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/$/, "");
 
-// Lets ngrok tunnels skip their interstitial warning page.
-const NGROK_HEADER = { "ngrok-skip-browser-warning": "true" };
+// Lets ngrok tunnels skip their interstitial warning page. Sent ONLY to
+// ngrok hosts: a custom header forces a CORS preflight on every request,
+// which is pointless against Railway (and any edge error page without CORS
+// headers then surfaces as a confusing CORS error in the console).
+const NGROK_HEADER = API_BASE.includes("ngrok")
+  ? { "ngrok-skip-browser-warning": "true" }
+  : {};
 
 async function readError(res) {
   try {
