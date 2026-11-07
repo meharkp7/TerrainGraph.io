@@ -25,38 +25,13 @@ PIXEL_TO_CLASS = {
     550:2, 600:2, 700:2, 800:3,
     7100:4, 10000:5,
 }
-CLASS_NAMES = [
-    "Dense_Vegetation", "Dry_Vegetation", "Ground_Objects",
-    "Rocks", "Landscape", "Sky"
-]
-NUM_CLASSES  = len(CLASS_NAMES)
 IGNORE_INDEX = 255
 
-TRAVERSABILITY = {
-    0: 0.45,   # Dense_Vegetation
-    1: 0.75,   # Dry_Vegetation
-    2: 0.30,   # Ground_Objects
-    3: 0.15,   # Rocks
-    4: 0.95,   # Landscape
-    5: 0.00,   # Sky
-}
-RISK = {
-    0: "MED",
-    1: "LOW",
-    2: "MED-HIGH",
-    3: "HIGH",
-    4: "LOW",
-    5: "N/A",
-}
-
-PALETTE = np.array([
-    [34,  139,  34],   # Dense_Vegetation  → forest green
-    [210, 180, 140],   # Dry_Vegetation    → tan
-    [139,  90,  43],   # Ground_Objects    → brown
-    [128, 128, 128],   # Rocks             → gray
-    [205, 133,  63],   # Landscape         → sandy
-    [135, 206, 235],   # Sky               → sky blue
-], dtype=np.uint8)
+# Class names, traversability, risk and palette live in terrain_const so the
+# lean (torch-free) backend can share them. Re-exported here for callers.
+from terrain_const import (  # noqa: E402
+    CLASS_NAMES, NUM_CLASSES, TRAVERSABILITY, RISK, PALETTE,
+)
 
 
 # ─────────────────────────────────────────────
