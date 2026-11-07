@@ -112,10 +112,14 @@ def get_client():
 
 def predict_via_space(image_path: str, img_size: int = 512) -> dict:
     """Run segmentation on the HF Space; same return shape as predict()."""
+    # NOTE: the image must be wrapped in handle_file() — gradio_client 1.x
+    # sends bare strings as-is, and the Space rejects them (ImageData
+    # validation error). Import stays function-level: lean-safe.
+    from gradio_client import handle_file
     client = get_client()
     try:
         mask_path, conf_path, class_dist = client.predict(
-            image_path, api_name="/segment")
+            handle_file(image_path), api_name="/segment")
     except SpaceInferenceError:
         raise
     except Exception as e:
