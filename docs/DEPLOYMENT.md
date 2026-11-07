@@ -1,22 +1,27 @@
 # Deployment
 
-Three targets, one repo. They share `requirements.txt`, `segmentor.py`,
-and the weights on the Hub — the checklist at the bottom keeps them in sync.
+Three targets, one repo. Railway is a lean API (no torch) that calls the
+HF Space for segmentation — the checklist at the bottom keeps them in sync.
 
-## Backend → Railway (FastAPI + Docker)
+## Backend → Railway (FastAPI + Docker, lean)
 
-- Build: `Dockerfile` (`railway.toml` selects it). Model weights download
-  from `HF_MODEL_REPO` at build time into `runs/deployed/best.pth`;
-  `MODEL_CHECKPOINT` is set to that path in the image.
-- Start: `uvicorn api:app --host 0.0.0.0 --port ${PORT}`
-- Health check: `GET /health` (timeout 120 s — torch cold-start is slow).
-- Env vars on Railway: `TIGERGRAPH_*`, `GROQ_API_KEY`/`GEMINI_API_KEY`/
-  `ANTHROPIC_API_KEY`, `HF_MODEL_REPO`, `HF_TOKEN` (only for private repos).
-- CPU-only torch is pinned in `requirements.txt`; `opencv-python-headless`
-  avoids the ~200 MB Qt/RAM hit of the GUI build.
+- Build: `Dockerfile` (`railway.toml` selects it). Installs
+  `requirements-railway.txt` — no torch/smp/albumentations, ~150MB RAM,
+  fits the 512MB tier. No model download (weights live on the Space).
+- Start: `uvicorn api:app --host 0.0.0.0 --port ${PORT}` (via `sh -c`).
+- Health check: `GET /health` — green in seconds (nothing heavy at boot).
+- Env vars on Railway: `INFERENCE_BACKEND=space` (set in the image, but
+  make sure no dashboard override says `local`), `HF_SPACE_ID`
+  (`user/space-name` of the deployed Space below), `TIGERGRAPH_*`,
+  `GROQ_API_KEY`/`GEMINI_API_KEY`/`ANTHROPIC_API_KEY`, `HF_TOKEN`
+  (only for private Spaces/repos).
 - First boot also needs the graph schema once: run
   `python setup_tigergraph.py` locally with the same TigerGraph credentials
   (or accept graceful local-only mode).
+- First `/analyze` after idle takes a while: the free Space sleeps when
+  unused, so the first call wakes it (~30–60s) and may 502 — the API
+  returns `502 Inference Space unavailable … retry`, and the retry
+  succeeds once the Space is warm.
 
 ## Railway troubleshooting
 
@@ -108,24 +113,34 @@ Whichever tunnel you use, update `VITE_API_BASE` and rebuild/redeploy the
 frontend — the URL is baked in at build time. Tunnels are a stopgap;
 Railway above remains the permanent backend.
 
-## Demo → HuggingFace Space (Gradio)
+## Inference + demo → HuggingFace Space (Gradio, free 16GB CPU)
 
-The Space deploys **from this repo**:
+The Space deploys **from this repo** and serves two roles: the human demo
+(`Demo` tab) and the machine endpoint the Railway backend calls
+(`API` tab, `/segment` → `mask.png` + `conf.png` + `class_dist` JSON).
 
-1. Create a Space (Gradio SDK, CPU) backed by / mirroring this GitHub repo,
-   or push directly:
+1. Create a Space (Gradio SDK, CPU hardware) backed by / mirroring this
+   GitHub repo, or push directly:
    ```bash
    git remote add hf https://huggingface.co/spaces/<user>/<space>
    git push hf main
    ```
-2. Space entrypoint is `app.py`; dependencies come from the same root
-   `requirements.txt` (it includes `gradio`, `huggingface_hub`, `matplotlib`).
+2. Space entrypoint is `app.py`; dependencies come from the root
+   `requirements.txt` (torch CPU stack + `gradio` + `huggingface_hub`).
+   Do NOT point the Space at `requirements-railway.txt` (no torch there).
 3. The Space header lives at the top of [`README.md`](../README.md)
    (`sdk: gradio`, `app_file: app.py`) — that's what makes the file double
    as the Space card. Keep it.
 4. Weights: `pipeline_hf.py` pulls `best.pth` from
    `mk1647/terrain-intelligence` on first run (cached after that).
-5. No secrets needed: no TigerGraph, no LLM keys (template briefing).
+5. No secrets needed on the Space: no TigerGraph, no LLM keys (the demo
+   briefing is a template; graph + LLM run on Railway).
+6. After deploy, copy the Space id (`user/space-name`) into Railway's
+   `HF_SPACE_ID` env var and redeploy Railway. Verify:
+   `GET /health` shows `"inference_backend": "space"`.
+7. Free Spaces sleep after inactivity — the first call wakes them
+   (~30–60s). Railway surfaces this as a retryable 502; the retry lands
+   on a warm Space.
 
 ## Frontend → Vercel (React + Vite)
 
@@ -139,10 +154,13 @@ The Space deploys **from this repo**:
 
 ## Sync checklist (run before pushing)
 
-- [ ] `requirements.txt` installs **both** entrypoints:
-      `uvicorn api:app` (Railway) and `python app.py` (Space)
+- [ ] `requirements-railway.txt` installs the lean backend (`uvicorn api:app`,
+      no torch); root `requirements.txt` installs the Space (`python app.py`)
 - [ ] `app.py` + `pipeline_hf.py` importable without TigerGraph/LLM keys
+- [ ] `/segment` wire format matches `segmentor_space.py`
+      (`mask.png` + `conf.png` + `class_dist`) — run `tests/test_space_codec.py`
 - [ ] `frontend/src/api.js` matches `docs/API.md` (paths, field names)
 - [ ] Root `README.md` keeps the HF frontmatter block at the top
 - [ ] `VITE_API_BASE` on Vercel points at the current backend host
+- [ ] `HF_SPACE_ID` on Railway points at the current Space id
 - [ ] `MODEL_MIOU` in `pipeline.py` matches the deployed checkpoint's mIoU

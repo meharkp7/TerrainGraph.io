@@ -2,10 +2,17 @@
 
 End-to-end flow for one image (`pipeline.run_pipeline`):
 
-## Stage 1 — Segmentation (`segmentor.py`)
+## Stage 1 — Segmentation (`segmentor.py` or HF Space)
 
 - DeepLabV3+ / ResNet-101, 512×512 input, ImageNet normalization.
-- Optional test-time augmentation: horizontal-flip averaging (`use_tta`).
+- Optional test-time augmentation: horizontal-flip averaging (`use_tta`, local only).
+- Two backends, one contract (`INFERENCE_BACKEND`):
+  - `local` — torch in-process (`segmentor.predict`), needs ~1GB+ RAM.
+  - `space` — HTTP call to the HF Space `/segment` endpoint
+    (`segmentor_space.predict_via_space`), torch-free, fits 512MB.
+- Wire format: Space returns `mask.png` (class ids 0-5), `conf.png`
+  (confidence 0-255) and `class_dist` JSON; the backend rebuilds the
+  identical dict local inference returns (see `tests/test_space_codec.py`).
 - Outputs: class mask (6 classes), per-pixel confidence, class distribution,
   **traversability map** (per-class score → pixel), color mask, 50/50 overlay.
 

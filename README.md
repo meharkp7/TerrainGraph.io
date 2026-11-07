@@ -21,14 +21,19 @@ an **LLM** writes a navigation briefing → results render in a live **React das
 | Surface | Entry | Deploy target |
 |---|---|---|
 | React dashboard | [`frontend/`](frontend/) → `TerrainIntelligence.jsx` | Vercel |
-| FastAPI backend | [`api.py`](api.py) | Railway (Docker) |
-| Gradio demo | [`app.py`](app.py) | HuggingFace Space |
+| FastAPI backend (lean, no torch) | [`api.py`](api.py) | Railway (Docker, 512MB) |
+| Inference Space + Gradio demo | [`app.py`](app.py) (`/segment`) | HuggingFace Space (16GB free) |
 | Weights | [`mk1647/terrain-intelligence`](https://huggingface.co/mk1647/terrain-intelligence) | HuggingFace Hub |
+
+Railway's 512MB tier can't hold torch + the 550MB model, so segmentation
+runs on the free HF Space and Railway calls it over HTTP (`/segment`).
+Same weights, same quality — the switch is one env var (`INFERENCE_BACKEND`).
+Local dev still runs the full pipeline in-process by default.
 
 ## How it works
 
 ```
-image ──▶ DeepLabV3+ (ResNet-101, mIoU 0.6676)
+image ──▶ DeepLabV3+ (ResNet-101, mIoU 0.6676)  [local torch | Space /segment]
               │  mask + class distribution + traversability map
               ▼
         TigerGraph terrain graph (16×16 patches, 4-connected)
@@ -120,7 +125,9 @@ Training details: [`docs/TRAINING.md`](docs/TRAINING.md)
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `MODEL_CHECKPOINT` | yes | Path to `best.pth` (or set by `download_model.py`) |
+| `INFERENCE_BACKEND` | no | `local` (torch, default) or `space` (HF Space; Railway must use this) |
+| `HF_SPACE_ID` | in space mode | `user/space-name` of the deployed inference Space |
+| `MODEL_CHECKPOINT` | local mode | Path to `best.pth` (or set by `download_model.py`) |
 | `TIGERGRAPH_HOST` / `TIGERGRAPH_API_TOKEN` / `TIGERGRAPH_GRAPH_NAME` | no¹ | Graph memory; pathfinding still works without it |
 | `GROQ_API_KEY` / `GEMINI_API_KEY` / `ANTHROPIC_API_KEY` | no² | LLM briefing, tried in that order |
 | `HF_MODEL_REPO` / `HF_TOKEN` | no | Weight download (defaults to public repo) |
@@ -137,8 +144,10 @@ Template: [`.env.example`](.env.example), [`frontend/.env.example`](frontend/.en
 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) covers all three targets and the
 checklist that keeps them in sync:
 
-- **Railway** (backend): Docker build, model fetched at build time, `/health` check
-- **HuggingFace Space** (demo): deploys from this repo — `app.py` + `requirements.txt`
+- **Railway** (lean backend): Docker build from `requirements-railway.txt`
+  (no torch, fits 512MB), `INFERENCE_BACKEND=space`, `HF_SPACE_ID` env var
+- **HuggingFace Space** (inference + demo): deploys from this repo —
+  `app.py` + root `requirements.txt`, serves `/segment` to Railway
 - **Vercel** (frontend): root directory `frontend/`, `VITE_API_BASE` env var
 
 ## API (summary)

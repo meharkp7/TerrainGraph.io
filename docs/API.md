@@ -16,12 +16,16 @@ curl -s $API/health
   "status": "healthy",
   "model_loaded": false,
   "model_miou": 0.6676,
-  "tigergraph": "https://<host> or \"not set\""
+  "inference_backend": "space",
+  "tigergraph": "https://<host> or \"not set\"",
+  "space_id": "user/terrain-space"
 }
 ```
 
-`model_loaded` is `false` until the first `/analyze` call — the 550MB
-weights load lazily so container boot stays light (see deployment notes).
+- `inference_backend` is `local` (torch in-process) or `space`
+  (HF Space `/segment` call). `space_id` only appears in space mode.
+- `model_loaded` is `false` until the first `/analyze` call in local mode —
+  the 550MB weights load lazily so container boot stays light.
 
 ## `POST /analyze`
 
@@ -52,7 +56,8 @@ Success response:
 - `class_dist` values are fractions (0–1).
 - `risk_zones` / `similar` use TigerGraph `{"attributes": {...}}` shape even
   for locally computed fallbacks, so clients parse one shape.
-- Errors: `400` non-image upload, `500` pipeline failure (message in `detail`).
+- Errors: `400` non-image upload, `500` pipeline failure, `502` inference
+  Space unreachable/sleeping in space mode (retry — message in `detail`).
 
 ## `GET /image/{image_id}/{type}`
 
