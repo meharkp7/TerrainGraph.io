@@ -25,7 +25,12 @@ End-to-end flow for one image (`pipeline.run_pipeline`):
 | 4 | Landscape | 0.95 | LOW |
 | 5 | Sky | 0.00 | N/A |
 
-## Stage 2 — Terrain graph + pathfinding (`terrain_graph.py`)
+## Stage 2 — Terrain graph + pathfinding (`kuzu_graph.py` / `terrain_graph.py`)
+
+Two interchangeable stores behind `GRAPH_BACKEND` (`kuzu` default, free and
+embedded; `tigergraph` needs cloud credits). Same node/edge shape, same
+`{"attributes": {...}}` query contract; local building shared in
+`terrain_graph.build_terrain_local`.
 
 - The 512×512 mask is tiled into 32px patches → **16×16 grid (256 nodes)**.
 - Each patch becomes a `TerrainPatch` vertex (dominant class, traversability,
@@ -36,19 +41,21 @@ End-to-end flow for one image (`pipeline.run_pipeline`):
 - Patch ids use `:` separators (`{image_id}:r{row}:c{col}`) so parsing is
   unambiguous even when `image_id` contains underscores.
 - **Dijkstra runs in Python** over the local patch/edge lists
-  (bottom-center → top-center). No GSQL pathfinding needed, so a path is
-  always returned even if TigerGraph is unreachable.
+  (bottom-center → top-center). No database pathfinding needed, so a path is
+  always returned even if the graph store is unreachable.
 
 ## Stage 3 — Graph memory queries
 
 - `upload_terrain` stores `ImageRecord`, patches, edges, `RiskZone`s
   (clusters of ≥2 adjacent HIGH/MED-HIGH patches) and the `SafePath`.
 - `getRiskZones(image_id)` — risk zones for this image (falls back to the
-  locally computed zones when TigerGraph is unavailable).
+  locally computed zones when the store is unavailable).
 - `findSimilarTerrains(rock_pct, veg_pct, brightness)` — past images with
   similar composition, ranked by mIoU, for historical context.
 
-Schema + queries are installed once via `python setup_tigergraph.py`.
+Kuzu creates its schema automatically on first connect (verify explicitly
+with `python setup_kuzu.py`); TigerGraph mode installs GSQL schema + queries
+once via `python setup_tigergraph.py`.
 Vertex/edge types: `TerrainPatch`, `ImageRecord`, `RiskZone`, `SafePath`,
 `AdjacentTo`, `BelongsTo`, `HasRiskZone`, `HasPath`.
 

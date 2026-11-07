@@ -5,7 +5,7 @@ emoji: 🌍
 colorFrom: green
 colorTo: gray
 sdk: gradio
-sdk_version: 5.0.0
+sdk_version: 5.50.0
 app_file: app.py
 pinned: false
 ---
@@ -15,7 +15,7 @@ pinned: false
 Intelligent terrain analysis and safe navigation for autonomous offroad vehicles (UGVs).
 
 Upload a desert-scene image → **DeepLabV3+** segments it into 6 terrain classes →
-a **TigerGraph** terrain graph is built → **Dijkstra** finds the safest path →
+a terrain graph is built (**Kuzu** embedded, free) → **Dijkstra** finds the safest path →
 an **LLM** writes a navigation briefing → results render in a live **React dashboard**.
 
 | Surface | Entry | Deploy target |
@@ -36,7 +36,7 @@ Local dev still runs the full pipeline in-process by default.
 image ──▶ DeepLabV3+ (ResNet-101, mIoU 0.6676)  [local torch | Space /segment]
               │  mask + class distribution + traversability map
               ▼
-        TigerGraph terrain graph (16×16 patches, 4-connected)
+        Kuzu terrain graph (16×16 patches, 4-connected)
               │  Python Dijkstra, bottom-center → top-center
               ▼
         risk zones + similar-terrain memory queries
@@ -56,8 +56,8 @@ Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env        # fill in TigerGraph + LLM keys (all optional except model)
-python setup_tigergraph.py  # once: create graph schema + queries
+cp .env.example .env        # LLM keys optional; Kuzu needs nothing
+python setup_kuzu.py        # once: verify the embedded graph (also auto-created)
 uvicorn api:app --port 8000
 ```
 
@@ -91,11 +91,13 @@ python app.py
 ├── pipeline.py          # Full pipeline: segment → graph → query → LLM brief
 ├── pipeline_hf.py       # Lightweight Space pipeline (no TigerGraph/LLM needed)
 ├── segmentor.py         # DeepLabV3+ loader + inference, traversability maps
-├── terrain_graph.py     # TigerGraph schema, patch graph, Dijkstra, risk zones
+├── kuzu_graph.py          # Kuzu backend (default, free): same API as below
+├── terrain_graph.py     # TigerGraph backend (needs credits) + shared local builders
 ├── explainer.py         # LLM layer: Groq → Gemini → Claude → template
 ├── utils.py             # Chart helper for the Gradio demo
 ├── download_model.py    # Fetch best.pth from HuggingFace Hub
-├── setup_tigergraph.py  # One-time TigerGraph schema setup
+├── setup_kuzu.py          # Initialize Kuzu store (also auto-created on boot)
+├── setup_tigergraph.py  # One-time TigerGraph schema setup (TG mode only)
 ├── train_fixed.py       # Training (DeepLabV3+, corrected mask decoding)
 ├── train_segformer.py   # Training (SegFormer-B4 variant)
 ├── Dockerfile / railway.toml / requirements.txt
@@ -127,14 +129,17 @@ Training details: [`docs/TRAINING.md`](docs/TRAINING.md)
 |---|---|---|
 | `INFERENCE_BACKEND` | no | `local` (torch, default) or `space` (HF Space; Railway must use this) |
 | `HF_SPACE_ID` | in space mode | `user/space-name` of the deployed inference Space |
+| `GRAPH_BACKEND` | no | `kuzu` (default, free) or `tigergraph` (needs cloud credits) |
+| `KUZU_DB_PATH` | no | Kuzu directory (default `./data/terrain_kuzu`; ephemeral on Railway without a volume) |
 | `MODEL_CHECKPOINT` | local mode | Path to `best.pth` (or set by `download_model.py`) |
-| `TIGERGRAPH_HOST` / `TIGERGRAPH_API_TOKEN` / `TIGERGRAPH_GRAPH_NAME` | no¹ | Graph memory; pathfinding still works without it |
+| `TIGERGRAPH_HOST` / `TIGERGRAPH_API_TOKEN` / `TIGERGRAPH_GRAPH_NAME` | TG mode¹ | Graph memory (only when `GRAPH_BACKEND=tigergraph`) |
 | `GROQ_API_KEY` / `GEMINI_API_KEY` / `ANTHROPIC_API_KEY` | no² | LLM briefing, tried in that order |
 | `HF_MODEL_REPO` / `HF_TOKEN` | no | Weight download (defaults to public repo) |
 | `VITE_API_BASE` (frontend) | yes³ | Backend URL baked into the frontend build |
 
-¹ Without TigerGraph, uploads/queries log a warning and the pipeline uses local
-risk zones + Python Dijkstra. ² Without any LLM key, briefings use a template.
+¹ Kuzu (default) needs no credentials. TigerGraph mode without credits logs a
+warning and the pipeline uses local risk zones + Python Dijkstra.
+² Without any LLM key, briefings use a template.
 ³ Dev default `http://localhost:8000` via the Vite proxy.
 
 Template: [`.env.example`](.env.example), [`frontend/.env.example`](frontend/.env.example)

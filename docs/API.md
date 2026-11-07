@@ -17,6 +17,7 @@ curl -s $API/health
   "model_loaded": false,
   "model_miou": 0.6676,
   "inference_backend": "space",
+  "graph_backend": "kuzu",
   "tigergraph": "https://<host> or \"not set\"",
   "space_id": "user/terrain-space"
 }
@@ -24,6 +25,7 @@ curl -s $API/health
 
 - `inference_backend` is `local` (torch in-process) or `space`
   (HF Space `/segment` call). `space_id` only appears in space mode.
+- `graph_backend` is `kuzu` (embedded, default) or `tigergraph`.
 - `model_loaded` is `false` until the first `/analyze` call in local mode —
   the 550MB weights load lazily so container boot stays light.
 

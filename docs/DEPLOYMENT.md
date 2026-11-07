@@ -12,12 +12,13 @@ HF Space for segmentation — the checklist at the bottom keeps them in sync.
 - Health check: `GET /health` — green in seconds (nothing heavy at boot).
 - Env vars on Railway: `INFERENCE_BACKEND=space` (set in the image, but
   make sure no dashboard override says `local`), `HF_SPACE_ID`
-  (`user/space-name` of the deployed Space below), `TIGERGRAPH_*`,
+  (`user/space-name` of the deployed Space below),
   `GROQ_API_KEY`/`GEMINI_API_KEY`/`ANTHROPIC_API_KEY`, `HF_TOKEN`
-  (only for private Spaces/repos).
-- First boot also needs the graph schema once: run
-  `python setup_tigergraph.py` locally with the same TigerGraph credentials
-  (or accept graceful local-only mode).
+  (only for private Spaces/repos). `GRAPH_BACKEND` defaults to `kuzu`
+  (no credentials, no setup); leave TigerGraph vars unset.
+- Kuzu history is a local directory (`KUZU_DB_PATH`, default
+  `./data/terrain_kuzu`) — it resets on redeploy unless you mount a
+  Railway volume there. The pipeline works either way.
 - First `/analyze` after idle takes a while: the free Space sleeps when
   unused, so the first call wakes it (~30–60s) and may 502 — the API
   returns `502 Inference Space unavailable … retry`, and the retry
@@ -77,6 +78,13 @@ construction instead, and `get_conn()` degrades to local-only mode (path +
 risk zones still computed) whenever the connection can't be built — the
 pipeline never 500s on TigerGraph issues. Covered by
 `tests/test_tg_graceful.py`.
+
+**Space stuck in `BUILD_ERROR` right after push?** The Space builder
+installs `gradio[oauth]==<sdk_version>` from the README frontmatter on
+top of root `requirements.txt` — the two must resolve together (an old
+`sdk_version: 5.0.0` capped fastapi below our pin and broke the build).
+Keep `sdk_version` and the `gradio==` pin on the same 5.x line; the full
+build log in the Space UI names the conflicting package.
 
 ## Temporary tunnels (when Railway isn't up)
 
@@ -174,4 +182,5 @@ The Space deploys **from this repo** and serves two roles: the human demo
 - [ ] Root `README.md` keeps the HF frontmatter block at the top
 - [ ] `VITE_API_BASE` on Vercel points at the current backend host
 - [ ] `HF_SPACE_ID` on Railway points at the current Space id
+- [ ] `GRAPH_BACKEND` sane for the target (Railway/Vercel demo: `kuzu`)
 - [ ] `MODEL_MIOU` in `pipeline.py` matches the deployed checkpoint's mIoU
