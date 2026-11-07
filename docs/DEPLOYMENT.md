@@ -19,6 +19,10 @@ HF Space for segmentation — the checklist at the bottom keeps them in sync.
 - Kuzu history is a local directory (`KUZU_DB_PATH`, default
   `./data/terrain_kuzu`) — it resets on redeploy unless you mount a
   Railway volume there. The pipeline works either way.
+- Kuzu's buffer pool + threads are capped for small containers
+  (`KUZU_BUFFER_POOL_MB`, default 128; `KUZU_MAX_THREADS`, default 2):
+  Kuzu defaults to ~80% of host RAM and cannot see container limits,
+  which OOM-kills the process on open. Whole backend peaks ~150MB.
 - First `/analyze` after idle takes a while: the free Space sleeps when
   unused, so the first call wakes it (~30–60s) and may 502 — the API
   returns `502 Inference Space unavailable … retry`, and the retry

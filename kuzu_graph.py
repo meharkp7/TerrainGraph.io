@@ -31,6 +31,13 @@ from terrain_graph import PATCH_SIZE, build_terrain_local
 
 DB_PATH = os.getenv("KUZU_DB_PATH", "./data/terrain_kuzu")
 
+# Container-safe limits. Kuzu defaults its buffer pool to ~80% of HOST RAM
+# and thread count to host CPUs — it cannot see container cgroup limits, so
+# on a 512MB instance the defaults get the process OOM-killed on open.
+# Our data is tiny (hundreds of nodes/image), so cap aggressively.
+BUFFER_POOL_MB = int(os.getenv("KUZU_BUFFER_POOL_MB", "128"))
+MAX_THREADS = int(os.getenv("KUZU_MAX_THREADS", "2"))
+
 
 # ─────────────────────────────────────────────
 # SCHEMA  (same shape as the TigerGraph one)
@@ -85,7 +92,10 @@ def get_connection():
     if _conn is None:
         import kuzu  # lazy: clear error instead of ImportError at import
         Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
-        _db = kuzu.Database(DB_PATH)
+        _db = kuzu.Database(
+            DB_PATH,
+            buffer_pool_size=BUFFER_POOL_MB * 1024 * 1024,
+            max_num_threads=MAX_THREADS)
         _conn = kuzu.Connection(_db)
         setup_schema(_conn)
     return _conn
